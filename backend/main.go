@@ -5,6 +5,8 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -80,6 +82,40 @@ func main() {
 	pub.GET("/bookings/:token/agenda.ics", h.CalendarICS)
 
 	r.POST("/api/stripe/webhook", h.StripeWebhook)
+
+	r.GET("/health", func(c *gin.Context) {
+		c.Status(200)
+	})
+
+	staticRoot := strings.TrimSpace(os.Getenv("STATIC_ROOT"))
+	if staticRoot != "" {
+		abs, err := filepath.Abs(staticRoot)
+		if err != nil {
+			log.Fatal("STATIC_ROOT: ", err)
+		}
+		assetsDir := filepath.Join(abs, "assets")
+		if st, err := os.Stat(assetsDir); err == nil && st.IsDir() {
+			r.Static("/assets", assetsDir)
+		}
+		for _, name := range []string{"star.svg", "favicon.ico"} {
+			p := filepath.Join(abs, name)
+			if _, err := os.Stat(p); err == nil {
+				r.StaticFile("/"+name, p)
+			}
+		}
+		r.NoRoute(func(c *gin.Context) {
+			p := c.Request.URL.Path
+			if strings.HasPrefix(p, "/api") {
+				c.JSON(404, gin.H{"error": "not found"})
+				return
+			}
+			if c.Request.Method != "GET" && c.Request.Method != "HEAD" {
+				c.Status(404)
+				return
+			}
+			c.File(filepath.Join(abs, "index.html"))
+		})
+	}
 
 	srvAddr := ":" + cfg.Port
 	go func() {

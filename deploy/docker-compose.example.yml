@@ -1,0 +1,33 @@
+# À copier sur le VPS (ex. docker-compose.yml à côté de ton .env).
+#
+# 1) Renomme ce fichier ou copie son contenu dans docker-compose.yml
+# 2) Crée un .env à la racine du dossier avec les variables de .env.example
+#    — FRONTEND_URL doit être l’URL publique HTTPS du site (ex. https://pinkstarsociety.fr)
+# 3) Image publique : après le premier push GitHub Actions, rendre le package ghcr.io
+#    « public » dans GitHub → Packages → pinkstarsociety → Package settings,
+#    OU sur le VPS : docker login ghcr.io avec un PAT (read:packages).
+#
+# Commandes :
+#   docker compose pull
+#   docker compose up -d
+
+services:
+  pinkstarsociety:
+    image: ghcr.io/mathiascoutant/pinkstarsociety:latest
+    container_name: pinkstarsociety
+    restart: unless-stopped
+    ports:
+      # Mets 80:8080 si tu exposes directement le conteneur (sinon garde 8080 derrière un reverse proxy).
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      PORT: "8080"
+      # Déjà défini dans l’image ; tu peux le laisser ou forcer :
+      # STATIC_ROOT: /app/dist
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
