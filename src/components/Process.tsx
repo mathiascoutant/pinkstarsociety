@@ -44,8 +44,8 @@ export default function Process() {
           <div className="max-w-2xl">
             <SectionLabel n="02" label="Comment ça se passe" />
             <h2 className="mt-6 font-display text-5xl uppercase leading-[0.92] tracking-tight md:text-6xl">
-              <span className="text-white">Quatre étapes,</span>{" "}
-              <span className="chrome-pink">simples.</span>
+              <span className="chrome-pink">Quatre étapes,</span>{" "}
+              <span className="text-white">simples.</span>
             </h2>
           </div>
           <p className="max-w-sm text-sm text-white/55">

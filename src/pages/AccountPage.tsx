@@ -274,8 +274,8 @@ export default function AccountPage() {
             <motion.div variants={fadeUp}>
               <p className="text-[11px] uppercase tracking-[0.32em] text-white/35">
                 <Link to="/" className="transition hover:text-pss-pink">
-                  Accueil
-                </Link>
+              Accueil
+            </Link>
                 <span className="mx-2 text-white/20">/</span>
                 <span className="text-white/55">Compte</span>
               </p>
@@ -364,8 +364,8 @@ export default function AccountPage() {
                         <p className="text-[11px] text-white/35">
                           Modifie ton nom et ton adresse email
                         </p>
-                      </div>
-                    </div>
+          </div>
+        </div>
 
                     <div className="space-y-5 px-6 py-6 md:px-8 md:py-8">
                       <div className="grid gap-5 md:grid-cols-2">
@@ -387,7 +387,7 @@ export default function AccountPage() {
                             icon={<UserIcon />}
                           />
                         </FieldGroup>
-                      </div>
+            </div>
 
                       <FieldGroup label="Email">
                         <ModernInput
@@ -403,8 +403,8 @@ export default function AccountPage() {
                       <div className="border-t border-white/[0.06] pt-5">
                         <p className="text-[10px] uppercase tracking-[0.2em] text-white/30">
                           Optionnel — changement de mot de passe
-                        </p>
-                      </div>
+            </p>
+          </div>
 
                       <div className="grid gap-5 md:grid-cols-2">
                         <FieldGroup label="Nouveau mot de passe">
@@ -737,7 +737,7 @@ export default function AccountPage() {
                     </button>
                   </div>
                 </form>
-              </div>
+      </div>
             </motion.div>
           </motion.div>
         )}

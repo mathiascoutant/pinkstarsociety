@@ -23,10 +23,10 @@ export default function Intro() {
           <SectionLabel n="01" label="L'idée" />
           <h2 className="mt-6 font-display text-5xl uppercase leading-[0.9] tracking-tight md:text-7xl">
             <Reveal>
-              <span className="block text-white">Une main posée,</span>
+              <span className="block chrome-pink">Une main posée,</span>
             </Reveal>
             <Reveal delay={0.1}>
-              <span className="block chrome-pink">une présence.</span>
+              <span className="block text-white">une présence.</span>
             </Reveal>
           </h2>
 

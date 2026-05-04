@@ -39,10 +39,10 @@ export default function CTA() {
           transition={{ duration: 0.7, ease: [0.2, 0.8, 0.2, 1] }}
           className="mt-6 font-display uppercase leading-[0.86] tracking-tight"
         >
-          <span className="block text-[14vw] text-white sm:text-6xl md:text-[7.5rem]">
+          <span className="block text-[14vw] chrome-pink sm:text-6xl md:text-[7.5rem]">
             On commence
           </span>
-          <span className="block text-[14vw] chrome-pink sm:text-6xl md:text-[7.5rem]">
+          <span className="block text-[14vw] text-white sm:text-6xl md:text-[7.5rem]">
             par un message ?
           </span>
         </motion.h2>

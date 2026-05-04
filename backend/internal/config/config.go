@@ -1,8 +1,12 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -32,9 +36,41 @@ type Config struct {
 	GoogleCalendarID string
 }
 
+func loadEnvFiles() {
+	candidates := []string{".env", "../.env"}
+	if wd, err := os.Getwd(); err == nil {
+		candidates = append([]string{
+			filepath.Join(wd, ".env"),
+			filepath.Join(wd, "..", ".env"),
+		}, candidates...)
+	}
+	seen := make(map[string]struct{})
+	for _, p := range candidates {
+		abs, err := filepath.Abs(p)
+		if err != nil {
+			continue
+		}
+		if _, dup := seen[abs]; dup {
+			continue
+		}
+		seen[abs] = struct{}{}
+		err = godotenv.Load(abs)
+		if err == nil {
+			continue
+		}
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		var pathErr *os.PathError
+		if errors.As(err, &pathErr) && errors.Is(pathErr.Err, fs.ErrNotExist) {
+			continue
+		}
+		log.Printf("godotenv %s: %v", abs, err)
+	}
+}
+
 func Load() (*Config, error) {
-	_ = godotenv.Load("../.env")
-	_ = godotenv.Load(".env")
+	loadEnvFiles()
 
 	dbName := strings.TrimSpace(os.Getenv("MONGODB_DATABASE"))
 	if dbName == "" {

@@ -16,11 +16,11 @@ export default function Hero() {
   return (
     <section
       ref={ref}
-      className="relative min-h-[100svh] w-full overflow-hidden pt-32 md:pt-40"
+      className="relative min-h-[100svh] w-full overflow-hidden pt-24 sm:pt-32 md:pt-40"
     >
       <BackgroundFX />
 
-      <div className="relative z-10 mx-auto grid max-w-[1400px] grid-cols-1 items-center gap-10 px-5 pb-24 sm:px-7 md:px-10 lg:grid-cols-12 lg:gap-12">
+      <div className="relative z-10 mx-auto grid max-w-[1400px] grid-cols-1 items-center gap-8 px-5 pb-16 sm:px-7 sm:pb-24 md:gap-10 md:px-10 lg:grid-cols-12 lg:gap-12">
         <motion.div
           style={{ y: yCopy, opacity }}
           className="relative lg:col-span-7"
@@ -29,12 +29,12 @@ export default function Hero() {
 
           <h1 className="font-display uppercase leading-[0.86] tracking-tight">
             <Reveal delay={0.05}>
-              <span className="block text-[12vw] text-white md:text-[7.4vw] lg:text-[7.8rem] [text-shadow:0_4px_30px_rgba(255,0,122,0.18)]">
+              <span className="block text-[12vw] chrome-pink md:text-[7.4vw] lg:text-[7.8rem]">
                 Pink Star
               </span>
             </Reveal>
             <Reveal delay={0.18}>
-              <span className="block text-[12vw] chrome-pink md:text-[7.4vw] lg:text-[7.8rem]">
+              <span className="block text-[12vw] text-white md:text-[7.4vw] lg:text-[7.8rem] [text-shadow:0_4px_30px_rgba(255,0,122,0.18)]">
                 Society.
               </span>
             </Reveal>
@@ -44,7 +44,7 @@ export default function Hero() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4, duration: 0.6 }}
-            className="mt-5 flex items-center gap-3 text-[11px] uppercase tracking-[0.32em] text-white/65"
+            className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] uppercase tracking-[0.28em] text-white/65 sm:tracking-[0.32em] md:mt-5"
           >
             <span className="h-px w-8 bg-pss-pink" />
             <span>Nail art sur-mesure</span>
@@ -56,7 +56,7 @@ export default function Hero() {
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.55, duration: 0.7 }}
-            className="mt-8 max-w-[36rem] font-body text-[15px] leading-relaxed text-white/70 md:text-[17px]"
+            className="mt-6 max-w-[36rem] font-body text-[14.5px] leading-relaxed text-white/70 sm:text-[15px] md:mt-8 md:text-[17px]"
           >
             Pose gel, dépose, créations à la main. Chaque set se construit à
             partir d'une inspiration partagée, et chaque séance se termine par
@@ -67,18 +67,21 @@ export default function Hero() {
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.7, duration: 0.6 }}
-            className="mt-10 flex flex-wrap items-center gap-3"
+            className="mt-7 flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center md:mt-10"
           >
             <a
               href={INSTA_URL}
               target="_blank"
               rel="noreferrer"
-              className="btn-pink"
+              className="btn-pink justify-center sm:justify-start"
             >
               <InstaIcon />
               Prendre rendez-vous
             </a>
-            <a href="#process" className="btn-chrome">
+            <a
+              href="#process"
+              className="btn-chrome justify-center sm:justify-start"
+            >
               Comment ça marche
             </a>
           </motion.div>
@@ -87,17 +90,17 @@ export default function Hero() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 1, duration: 0.6 }}
-            className="mt-14 grid max-w-md grid-cols-3 gap-x-6 gap-y-1 border-t border-white/10 pt-6"
+            className="mt-10 grid max-w-md grid-cols-3 gap-x-4 gap-y-1 border-t border-white/10 pt-5 md:mt-14 md:gap-x-6 md:pt-6"
           >
             <Meta k="Lieu" v="Bordeaux" />
-            <Meta k="Format" v="Sur rendez-vous" />
+            <Meta k="Format" v="Sur RDV" />
             <Meta k="Photos" v="Espace privé" />
           </motion.div>
         </motion.div>
 
         <motion.div
           style={{ y: yArt }}
-          className="relative h-[440px] w-full lg:col-span-5 lg:h-[600px]"
+          className="relative h-[340px] w-full sm:h-[420px] lg:col-span-5 lg:h-[600px]"
         >
           <Composition />
         </motion.div>
@@ -114,7 +117,7 @@ function Eyebrow() {
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
-      className="mb-8 flex items-center gap-3 text-[11px] uppercase tracking-[0.32em] text-white/55"
+      className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] uppercase tracking-[0.28em] text-white/55 sm:text-[11px] sm:tracking-[0.32em] md:mb-8"
     >
       <span className="grid h-1.5 w-1.5 place-items-center rounded-full bg-pss-pink shadow-[0_0_10px_rgba(255,0,122,0.8)]" />
       <span className="text-white/85">Édition 01</span>
@@ -207,60 +210,87 @@ function Composition() {
 
 function StarMark() {
   return (
-    <svg
-      viewBox="0 0 320 320"
-      className="h-72 w-72 drop-shadow-[0_0_60px_rgba(255,0,122,0.35)] md:h-[24rem] md:w-[24rem]"
-    >
-      <defs>
-        <linearGradient id="hp" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor="#ffe6f4" />
-          <stop offset="0.42" stopColor="#ff007a" />
-          <stop offset="0.6" stopColor="#5a0028" />
-          <stop offset="1" stopColor="#ff7ad1" />
-        </linearGradient>
-        <radialGradient id="hp-shine" cx="50%" cy="32%" r="55%">
-          <stop offset="0" stopColor="#ffffff" stopOpacity="0.7" />
-          <stop offset="0.55" stopColor="#ffffff" stopOpacity="0" />
-        </radialGradient>
-        <linearGradient id="ring" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0" stopColor="#ff7ad1" stopOpacity="0.7" />
-          <stop offset="0.5" stopColor="#ffffff" stopOpacity="0.4" />
-          <stop offset="1" stopColor="#ff007a" stopOpacity="0.7" />
-        </linearGradient>
-      </defs>
+    <div className="relative grid place-items-center">
+      {/* Glow halo behind logo */}
+      <div className="pointer-events-none absolute inset-0 -z-10 grid place-items-center">
+        <div className="h-56 w-56 rounded-full bg-pss-pink/35 blur-3xl md:h-96 md:w-96" />
+      </div>
 
-      <ellipse
-        cx="160"
-        cy="170"
-        rx="142"
-        ry="38"
-        transform="rotate(-18 160 170)"
-        fill="none"
-        stroke="url(#ring)"
-        strokeWidth="1.4"
-        opacity="0.85"
+      <img
+        src="/logo.png"
+        alt="Pink Star Society"
+        loading="eager"
+        decoding="async"
+        style={{
+          mixBlendMode: "screen",
+          WebkitMaskImage:
+            "radial-gradient(circle at center, #000 48%, rgba(0,0,0,0.5) 62%, transparent 78%)",
+          maskImage:
+            "radial-gradient(circle at center, #000 48%, rgba(0,0,0,0.5) 62%, transparent 78%)",
+        }}
+        className="h-80 w-80 select-none object-contain drop-shadow-[0_0_60px_rgba(255,0,122,0.45)] md:h-[30rem] md:w-[30rem]"
+        onError={(e) => {
+          const target = e.currentTarget;
+          target.style.display = "none";
+          const sib = target.nextElementSibling as HTMLElement | null;
+          if (sib) sib.style.display = "block";
+        }}
       />
 
-      <g transform="translate(160 160)">
-        <polygon
-          fill="url(#hp)"
-          stroke="#1a0010"
-          strokeWidth="9"
-          strokeLinejoin="round"
-          points="0,-128 36,-42 128,-42 54,8 82,98 0,48 -82,98 -54,8 -128,-42 -36,-42"
-        />
-        <polygon
-          fill="url(#hp-shine)"
+      {/* SVG fallback (hidden unless /logo.png fails to load) */}
+      <svg
+        style={{ display: "none" }}
+        viewBox="0 0 320 320"
+        className="h-72 w-72 drop-shadow-[0_0_60px_rgba(255,0,122,0.35)] md:h-[24rem] md:w-[24rem]"
+      >
+        <defs>
+          <linearGradient id="hp" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0" stopColor="#ffe6f4" />
+            <stop offset="0.42" stopColor="#ff007a" />
+            <stop offset="0.6" stopColor="#5a0028" />
+            <stop offset="1" stopColor="#ff7ad1" />
+          </linearGradient>
+          <radialGradient id="hp-shine" cx="50%" cy="32%" r="55%">
+            <stop offset="0" stopColor="#ffffff" stopOpacity="0.7" />
+            <stop offset="0.55" stopColor="#ffffff" stopOpacity="0" />
+          </radialGradient>
+          <linearGradient id="ring" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0" stopColor="#ff7ad1" stopOpacity="0.7" />
+            <stop offset="0.5" stopColor="#ffffff" stopOpacity="0.4" />
+            <stop offset="1" stopColor="#ff007a" stopOpacity="0.7" />
+          </linearGradient>
+        </defs>
+        <ellipse
+          cx="160"
+          cy="170"
+          rx="142"
+          ry="38"
+          transform="rotate(-18 160 170)"
+          fill="none"
+          stroke="url(#ring)"
+          strokeWidth="1.4"
           opacity="0.85"
-          points="0,-128 36,-42 128,-42 54,8 82,98 0,48 -82,98 -54,8 -128,-42 -36,-42"
         />
-      </g>
-
-      <g fill="#ff7ad1" opacity="0.9">
-        <path d="M280 96 l3 9 9 3 -9 3 -3 9 -3 -9 -9 -3 9 -3z" />
-        <path d="M48 224 l2.5 7 7 2.5 -7 2.5 -2.5 7 -2.5 -7 -7 -2.5 7 -2.5z" />
-      </g>
-    </svg>
+        <g transform="translate(160 160)">
+          <polygon
+            fill="url(#hp)"
+            stroke="#1a0010"
+            strokeWidth="9"
+            strokeLinejoin="round"
+            points="0,-128 36,-42 128,-42 54,8 82,98 0,48 -82,98 -54,8 -128,-42 -36,-42"
+          />
+          <polygon
+            fill="url(#hp-shine)"
+            opacity="0.85"
+            points="0,-128 36,-42 128,-42 54,8 82,98 0,48 -82,98 -54,8 -128,-42 -36,-42"
+          />
+        </g>
+        <g fill="#ff7ad1" opacity="0.9">
+          <path d="M280 96 l3 9 9 3 -9 3 -3 9 -3 -9 -9 -3 9 -3z" />
+          <path d="M48 224 l2.5 7 7 2.5 -7 2.5 -2.5 7 -2.5 -7 -7 -2.5 7 -2.5z" />
+        </g>
+      </svg>
+    </div>
   );
 }
 

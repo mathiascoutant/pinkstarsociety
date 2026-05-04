@@ -1,20 +1,34 @@
 export default function Footer() {
   return (
     <footer className="relative overflow-hidden border-t border-white/5 bg-black">
+      {/* top accent line */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-pss-pink/60 to-transparent" />
+      {/* soft pink halo */}
+      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[24rem] w-[24rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-pss-pink/10 blur-[160px]" />
 
-      <div className="relative mx-auto max-w-[1400px] px-5 py-16 md:px-10">
-        {/* Giant wordmark */}
-        <div className="overflow-hidden">
-          <h2
-            className="font-display text-[20vw] leading-[0.85] uppercase tracking-tight chrome-text"
-            style={{ fontStretch: "100%" }}
-          >
-            PinkStarSociety
+      <div className="relative mx-auto max-w-[1400px] px-5 py-16 md:px-10 md:py-20">
+        {/* CENTERED WORDMARK */}
+        <div className="overflow-hidden text-center">
+          <h2 className="font-display uppercase leading-[0.85] tracking-tight chrome-text">
+            <span className="block text-[22vw] sm:hidden">PinkStar</span>
+            <span className="block text-[22vw] sm:hidden">Society</span>
+            <span className="hidden whitespace-nowrap sm:block sm:text-[15vw] md:text-[13vw] lg:text-[13vw]">
+              PinkStarSociety
+            </span>
           </h2>
         </div>
 
-        <div className="mt-12 grid grid-cols-1 gap-8 sm:grid-cols-2 md:max-w-xl md:gap-12">
+        {/* tagline + decorative line */}
+        <div className="mx-auto mt-8 flex max-w-md items-center gap-4">
+          <span className="h-px flex-1 bg-gradient-to-r from-transparent to-white/15" />
+          <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-pss-pink/80">
+            ★ Bordeaux ★
+          </span>
+          <span className="h-px flex-1 bg-gradient-to-l from-transparent to-white/15" />
+        </div>
+
+        {/* CENTERED COLUMNS */}
+        <div className="mx-auto mt-14 grid max-w-2xl grid-cols-1 gap-10 text-center sm:grid-cols-2 sm:gap-16">
           <Col title="Lien">
             <li>
               <a
@@ -55,20 +69,30 @@ export default function Footer() {
           </Col>
         </div>
 
-        <div className="mt-12 flex flex-wrap items-center justify-between gap-4 border-t border-white/5 pt-6 text-xs text-white/40">
-          <span>© {new Date().getFullYear()} Pink Star Society — All chrome reserved.</span>
-          <span className="font-mono">★ Forged in pink ★</span>
+        {/* BOTTOM */}
+        <div className="mx-auto mt-14 max-w-md border-t border-white/5 pt-6 text-center text-[11px] text-white/40">
+          © {new Date().getFullYear()} Pink Star Society — Tous droits
+          réservés.
         </div>
       </div>
     </footer>
   );
 }
 
-function Col({ title, children }: { title: string; children: React.ReactNode }) {
+function Col({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <div>
-      <div className="mb-4 text-[11px] uppercase tracking-[0.2em] text-white/40">
-        {title}
+      <div className="mb-4 text-[10px] uppercase tracking-[0.32em] text-white/40">
+        <span className="inline-flex items-center gap-2">
+          <span className="h-1 w-1 rounded-full bg-pss-pink/80" />
+          {title}
+        </span>
       </div>
       <ul className="space-y-2 text-sm text-white/70">{children}</ul>
     </div>
