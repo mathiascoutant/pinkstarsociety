@@ -19,6 +19,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// isSubPath indique si full est un chemin sous root (évite path traversal).
+func isSubPath(root, full string) bool {
+	rel, err := filepath.Rel(root, full)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
@@ -112,6 +121,16 @@ func main() {
 			if c.Request.Method != "GET" && c.Request.Method != "HEAD" {
 				c.Status(404)
 				return
+			}
+			sub := strings.TrimPrefix(p, "/")
+			if sub != "" {
+				full := filepath.Join(abs, filepath.Clean(sub))
+				if isSubPath(abs, full) {
+					if st, err := os.Stat(full); err == nil && !st.IsDir() {
+						c.File(full)
+						return
+					}
+				}
 			}
 			c.File(filepath.Join(abs, "index.html"))
 		})
