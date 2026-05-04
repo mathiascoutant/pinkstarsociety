@@ -5,7 +5,7 @@ FROM node:22-alpine AS frontend
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
-COPY tsconfig.json tsconfig.node.json vite.config.ts vite.config.js vite.config.d.ts tailwind.config.js postcss.config.js index.html ./
+COPY tsconfig.json tsconfig.node.json vite.config.ts vite.config.js vite.config.d.ts tailwind.config.cjs postcss.config.cjs index.html ./
 COPY public ./public
 COPY src ./src
 RUN npm run build
