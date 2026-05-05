@@ -29,10 +29,10 @@ export default function Footer() {
 
         {/* CENTERED COLUMNS */}
         <div className="mx-auto mt-14 grid max-w-2xl grid-cols-1 gap-10 text-center sm:grid-cols-2 sm:gap-16">
-          <Col title="Lien">
+          <Col title="Cliquez ici">
             <li>
               <a
-                className="hover:text-white"
+                className="inline-flex min-w-[170px] items-center justify-center rounded-full border border-white/20 bg-white/5 px-5 py-2.5 text-sm font-medium text-white transition hover:border-pss-pink/60 hover:bg-pss-pink/20"
                 href="https://instagram.com/pinkstar_society"
                 target="_blank"
                 rel="noreferrer"
@@ -42,10 +42,10 @@ export default function Footer() {
             </li>
             <li>
               <a
-                className="hover:text-white"
+                className="inline-flex min-w-[170px] items-center justify-center rounded-full border border-white/20 bg-white/5 px-5 py-2.5 text-sm font-medium text-white transition hover:border-pss-pink/60 hover:bg-pss-pink/20"
                 href="mailto:contact@pinkstarsociety.fr"
               >
-                contact@pinkstarsociety.fr
+                Mail
               </a>
             </li>
           </Col>

@@ -59,7 +59,7 @@ export default function Hero() {
             transition={{ delay: 0.55, duration: 0.7 }}
             className="mt-6 max-w-[36rem] font-serif text-[16px] leading-relaxed text-white/75 sm:text-[17px] md:mt-8 md:text-[19px]"
           >
-            Pose gel, dépose, créations à la main. Chaque set se construit à
+            Pose, dépose, création à la main. Chaque set se construit à
             partir d'une inspiration partagée, et chaque séance se termine par
             un shoot — archivé dans votre espace personnel.
           </motion.p>
