@@ -30,6 +30,7 @@ type AuthState = {
     email: string;
     password: string;
     passwordConfirm: string;
+    loyaltyCode?: string;
   }) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
@@ -80,6 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: string;
       password: string;
       passwordConfirm: string;
+      loyaltyCode?: string;
     }) => {
       await api("/auth/register", {
         method: "POST",

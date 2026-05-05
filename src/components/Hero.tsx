@@ -27,14 +27,14 @@ export default function Hero() {
         >
           <Eyebrow />
 
-          <h1 className="font-display uppercase leading-[0.86] tracking-tight">
+          <h1 className="font-display uppercase leading-[1] tracking-[-0.05em]">
             <Reveal delay={0.05}>
-              <span className="block text-[12vw] chrome-pink md:text-[7.4vw] lg:text-[7.8rem]">
-                Pink Star
+              <span className="block text-[14vw] chrome-pink md:text-[8vw] lg:text-[8.4rem]">
+                PinkStar
               </span>
             </Reveal>
             <Reveal delay={0.18}>
-              <span className="block text-[12vw] text-white md:text-[7.4vw] lg:text-[7.8rem] [text-shadow:0_4px_30px_rgba(255,0,122,0.18)]">
+              <span className="block text-[14vw] text-white md:text-[8vw] lg:text-[8.4rem]">
                 Society.
               </span>
             </Reveal>
@@ -44,19 +44,19 @@ export default function Hero() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4, duration: 0.6 }}
-            className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] uppercase tracking-[0.28em] text-white/65 sm:tracking-[0.32em] md:mt-5"
+            className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] uppercase tracking-[0.28em] text-white/70 sm:tracking-[0.32em] md:mt-6"
           >
             <span className="h-px w-8 bg-pss-pink" />
             <span>Nail art sur-mesure</span>
-            <span className="text-white/25">·</span>
-            <span>Bordeaux</span>
+            <span className="h-px w-8 bg-pss-pink" />
+            <span className="text-pss-pink">Bordeaux</span>
           </motion.div>
 
           <motion.p
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.55, duration: 0.7 }}
-            className="mt-6 max-w-[36rem] font-body text-[14.5px] leading-relaxed text-white/70 sm:text-[15px] md:mt-8 md:text-[17px]"
+            className="mt-6 max-w-[36rem] font-serif text-[16px] leading-relaxed text-white/75 sm:text-[17px] md:mt-8 md:text-[19px]"
           >
             Pose gel, dépose, créations à la main. Chaque set se construit à
             partir d'une inspiration partagée, et chaque séance se termine par
@@ -119,7 +119,7 @@ function Eyebrow() {
       transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
       className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] uppercase tracking-[0.28em] text-white/55 sm:text-[11px] sm:tracking-[0.32em] md:mb-8"
     >
-      <span className="grid h-1.5 w-1.5 place-items-center rounded-full bg-pss-pink shadow-[0_0_10px_rgba(255,0,122,0.8)]" />
+      <span className="grid h-1.5 w-1.5 place-items-center rounded-full bg-pss-pink shadow-[0_0_10px_rgba(244,63,155,0.85)]" />
       <span className="text-white/85">Édition 01</span>
       <span className="text-white/25">/</span>
       <span>Réservations ouvertes</span>
@@ -135,7 +135,7 @@ function Reveal({
   delay?: number;
 }) {
   return (
-    <span className="block overflow-hidden">
+    <span className="block overflow-hidden py-[0.06em]">
       <motion.span
         initial={{ y: "112%" }}
         animate={{ y: "0%" }}
@@ -198,7 +198,7 @@ function Composition() {
         className="glass-card absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full px-5 py-2.5"
       >
         <div className="flex items-center gap-3 text-[11px] uppercase tracking-[0.28em] text-white/75">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-pss-pink shadow-[0_0_10px_rgba(255,0,122,0.8)]" />
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-pss-pink shadow-[0_0_10px_rgba(244,63,155,0.85)]" />
           <span>Carnet de RDV en ligne</span>
         </div>
       </motion.div>
@@ -211,10 +211,22 @@ function Composition() {
 function StarMark() {
   return (
     <div className="relative grid place-items-center">
-      {/* Glow halo behind logo */}
-      <div className="pointer-events-none absolute inset-0 -z-10 grid place-items-center">
-        <div className="h-56 w-56 rounded-full bg-pss-pink/35 blur-3xl md:h-96 md:w-96" />
-      </div>
+      {/* Outer pulsing pink halo */}
+      <motion.div
+        animate={{ opacity: [0.55, 1, 0.55], scale: [1, 1.08, 1] }}
+        transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
+        className="pointer-events-none absolute inset-0 -z-10 grid place-items-center"
+      >
+        <div className="h-72 w-72 rounded-full bg-pss-pink/55 blur-3xl md:h-[28rem] md:w-[28rem]" />
+      </motion.div>
+      {/* Inner hot core */}
+      <motion.div
+        animate={{ opacity: [0.5, 0.9, 0.5] }}
+        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+        className="pointer-events-none absolute inset-0 -z-10 grid place-items-center"
+      >
+        <div className="h-44 w-44 rounded-full bg-fuchsia-400/60 blur-2xl md:h-72 md:w-72" />
+      </motion.div>
 
       <img
         src="/logo.png"
@@ -224,11 +236,13 @@ function StarMark() {
         style={{
           mixBlendMode: "screen",
           WebkitMaskImage:
-            "radial-gradient(circle at center, #000 48%, rgba(0,0,0,0.5) 62%, transparent 78%)",
+            "radial-gradient(circle at center, #000 60%, rgba(0,0,0,0.7) 75%, transparent 90%)",
           maskImage:
-            "radial-gradient(circle at center, #000 48%, rgba(0,0,0,0.5) 62%, transparent 78%)",
+            "radial-gradient(circle at center, #000 60%, rgba(0,0,0,0.7) 75%, transparent 90%)",
+          filter:
+            "drop-shadow(0 0 35px rgba(244,63,155,0.95)) drop-shadow(0 0 70px rgba(255,182,221,0.6)) saturate(1.15)",
         }}
-        className="h-80 w-80 select-none object-contain drop-shadow-[0_0_60px_rgba(255,0,122,0.45)] md:h-[30rem] md:w-[30rem]"
+        className="h-80 w-80 select-none object-contain md:h-[30rem] md:w-[30rem]"
         onError={(e) => {
           const target = e.currentTarget;
           target.style.display = "none";

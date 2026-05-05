@@ -23,6 +23,7 @@ type registerBody struct {
 	Email           string `json:"email" binding:"required,email"`
 	Password        string `json:"password" binding:"required,min=8"`
 	PasswordConfirm string `json:"passwordConfirm" binding:"required"`
+	LoyaltyCode     string `json:"loyaltyCode"`
 }
 
 type loginBody struct {
@@ -50,19 +51,36 @@ func (h *Handlers) Register(c *gin.Context) {
 	if h.Config.AdminBootstrapEmail != "" && email == h.Config.AdminBootstrapEmail {
 		role = models.RoleAdmin
 	}
-	u := models.User{
-		FirstName:    strings.TrimSpace(body.FirstName),
-		LastName:     strings.TrimSpace(body.LastName),
-		Email:        email,
-		PasswordHash: hash,
-		Role:         role,
-		CreatedAt:    time.Now().UTC(),
-	}
-	u.QRToken = strings.ReplaceAll(uuid.New().String(), "-", "")
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
+	loyaltyPoints := 0
+	consumedLoyaltyCodeID := primitive.NilObjectID
+	if strings.TrimSpace(body.LoyaltyCode) != "" {
+		codeID, bonus, err := h.consumeLoyaltyCode(ctx, body.LoyaltyCode)
+		if err != nil {
+			if err == errLoyaltyCodeInvalid {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "code fidélité invalide ou épuisé"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "impossible d'appliquer le code fidélité"})
+			return
+		}
+		consumedLoyaltyCodeID = codeID
+		loyaltyPoints = bonus
+	}
+	u := models.User{
+		FirstName:     strings.TrimSpace(body.FirstName),
+		LastName:      strings.TrimSpace(body.LastName),
+		Email:         email,
+		PasswordHash:  hash,
+		Role:          role,
+		LoyaltyPoints: loyaltyPoints,
+		CreatedAt:     time.Now().UTC(),
+	}
+	u.QRToken = strings.ReplaceAll(uuid.New().String(), "-", "")
 	_, err = h.DB.Collection("users").InsertOne(ctx, u)
 	if err != nil {
+		h.rollbackConsumeLoyaltyCode(ctx, consumedLoyaltyCodeID)
 		if mongo.IsDuplicateKeyError(err) {
 			c.JSON(http.StatusConflict, gin.H{"error": "cet email est déjà utilisé"})
 			return
@@ -150,12 +168,12 @@ func (h *Handlers) Me(c *gin.Context) {
 }
 
 type patchMeBody struct {
-	FirstName         *string `json:"firstName"`
-	LastName          *string `json:"lastName"`
-	Email             *string `json:"email"`
-	Password          *string `json:"password"`
-	CurrentPassword   *string `json:"currentPassword"`
-	PasswordConfirm   *string `json:"passwordConfirm"`
+	FirstName       *string `json:"firstName"`
+	LastName        *string `json:"lastName"`
+	Email           *string `json:"email"`
+	Password        *string `json:"password"`
+	CurrentPassword *string `json:"currentPassword"`
+	PasswordConfirm *string `json:"passwordConfirm"`
 }
 
 func (h *Handlers) PatchMe(c *gin.Context) {

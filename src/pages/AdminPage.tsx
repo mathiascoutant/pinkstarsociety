@@ -13,6 +13,14 @@ type AdminUser = {
 };
 
 type ServiceType = { id: string; name: string };
+type LoyaltyCode = {
+  id: string;
+  code: string;
+  points: number;
+  maxUses: number;
+  usageCount: number;
+  isActive: boolean;
+};
 
 type Booking = {
   id: string;
@@ -138,9 +146,10 @@ function canCompleteService(b: Booking) {
 
 export default function AdminPage() {
   const { user, logout } = useAuth();
-  const [tab, setTab] = useState<"users" | "services" | "bookings">("bookings");
+  const [tab, setTab] = useState<"users" | "services" | "bookings" | "loyalty">("bookings");
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [services, setServices] = useState<ServiceType[]>([]);
+  const [loyaltyCodes, setLoyaltyCodes] = useState<LoyaltyCode[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [bookingFilter, setBookingFilter] = useState<"all" | "upcoming" | "past">("all");
   const [summaryPeriod, setSummaryPeriod] = useState<"all" | "month" | "last_30_days">("all");
@@ -150,6 +159,10 @@ export default function AdminPage() {
 
   const [newServiceName, setNewServiceName] = useState("");
   const [editService, setEditService] = useState<ServiceType | null>(null);
+  const [newLoyaltyCode, setNewLoyaltyCode] = useState("");
+  const [newLoyaltyPoints, setNewLoyaltyPoints] = useState("");
+  const [newLoyaltyMaxUses, setNewLoyaltyMaxUses] = useState("");
+  const [editLoyaltyCode, setEditLoyaltyCode] = useState<LoyaltyCode | null>(null);
 
   const [bServiceId, setBServiceId] = useState("");
   const [bDate, setBDate] = useState("");
@@ -185,6 +198,10 @@ export default function AdminPage() {
           "/admin/service-types",
         );
         setServices(r.serviceTypes);
+      }
+      if (tab === "loyalty") {
+        const r = await api<{ loyaltyCodes: LoyaltyCode[] }>("/admin/loyalty-codes");
+        setLoyaltyCodes(r.loyaltyCodes);
       }
       if (tab === "bookings") {
         const q =
@@ -281,6 +298,43 @@ export default function AdminPage() {
     void load();
   }
 
+  async function addLoyaltyCode(e: React.FormEvent) {
+    e.preventDefault();
+    await api("/admin/loyalty-codes", {
+      method: "POST",
+      body: JSON.stringify({
+        code: newLoyaltyCode,
+        points: Number(newLoyaltyPoints),
+        maxUses: Number(newLoyaltyMaxUses),
+      }),
+    });
+    setNewLoyaltyCode("");
+    setNewLoyaltyPoints("");
+    setNewLoyaltyMaxUses("");
+    void load();
+  }
+
+  async function saveLoyaltyCode() {
+    if (!editLoyaltyCode) return;
+    await api(`/admin/loyalty-codes/${editLoyaltyCode.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        code: editLoyaltyCode.code,
+        points: editLoyaltyCode.points,
+        maxUses: editLoyaltyCode.maxUses,
+        isActive: editLoyaltyCode.isActive,
+      }),
+    });
+    setEditLoyaltyCode(null);
+    void load();
+  }
+
+  async function deleteLoyaltyCode(id: string) {
+    if (!confirm("Supprimer ce code fidélité ?")) return;
+    await api(`/admin/loyalty-codes/${id}`, { method: "DELETE" });
+    void load();
+  }
+
   async function deleteUser(id: string) {
     if (!confirm("Supprimer cet utilisateur ?")) return;
     await api(`/admin/users/${id}`, { method: "DELETE" });
@@ -334,6 +388,7 @@ export default function AdminPage() {
             [
               ["bookings", "Réservations"],
               ["services", "Prestations"],
+              ["loyalty", "Codes fidélité"],
               ["users", "Utilisateurs"],
             ] as const
           ).map(([k, label]) => (
@@ -664,6 +719,75 @@ export default function AdminPage() {
           </div>
         )}
 
+        {tab === "loyalty" && (
+          <div className="mt-8 max-w-3xl">
+            <form onSubmit={addLoyaltyCode} className="grid gap-2 md:grid-cols-4">
+              <input
+                value={newLoyaltyCode}
+                onChange={(e) => setNewLoyaltyCode(e.target.value.toUpperCase())}
+                placeholder="Code"
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2"
+                required
+              />
+              <input
+                type="number"
+                min={1}
+                value={newLoyaltyPoints}
+                onChange={(e) => setNewLoyaltyPoints(e.target.value)}
+                placeholder="Points"
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2"
+                required
+              />
+              <input
+                type="number"
+                min={1}
+                value={newLoyaltyMaxUses}
+                onChange={(e) => setNewLoyaltyMaxUses(e.target.value)}
+                placeholder="Utilisations max"
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2"
+                required
+              />
+              <button type="submit" className="btn-pink md:col-span-3 md:w-fit">
+                Créer le code
+              </button>
+            </form>
+            <ul className="mt-6 space-y-2">
+              {loyaltyCodes.map((lc) => (
+                <li
+                  key={lc.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 px-3 py-2"
+                >
+                  <div className="text-sm">
+                    <p className="font-medium">
+                      <span className="text-pss-pink">{lc.code}</span>
+                    </p>
+                    <p className="text-white/60">
+                      {lc.points} pts · {lc.usageCount}/{lc.maxUses} usages ·{" "}
+                      {lc.isActive ? "Actif" : "Inactif"}
+                    </p>
+                  </div>
+                  <span className="flex gap-2">
+                    <button
+                      type="button"
+                      className="text-xs text-pss-pink"
+                      onClick={() => setEditLoyaltyCode({ ...lc })}
+                    >
+                      Modifier
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs text-red-400"
+                      onClick={() => void deleteLoyaltyCode(lc.id)}
+                    >
+                      Supprimer
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {tab === "users" && (
           <div className="mt-8 overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -729,6 +853,78 @@ export default function AdminPage() {
                 Annuler
               </button>
               <button type="button" onClick={() => void saveService()} className="btn-pink">
+                Enregistrer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editLoyaltyCode && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#0c0c10] p-6 space-y-3">
+            <h3 className="font-medium">Modifier code fidélité</h3>
+            <input
+              value={editLoyaltyCode.code}
+              onChange={(e) =>
+                setEditLoyaltyCode({
+                  ...editLoyaltyCode,
+                  code: e.target.value.toUpperCase(),
+                })
+              }
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2"
+              placeholder="Code"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="number"
+                min={1}
+                value={editLoyaltyCode.points}
+                onChange={(e) =>
+                  setEditLoyaltyCode({
+                    ...editLoyaltyCode,
+                    points: Number(e.target.value),
+                  })
+                }
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2"
+                placeholder="Points"
+              />
+              <input
+                type="number"
+                min={1}
+                value={editLoyaltyCode.maxUses}
+                onChange={(e) =>
+                  setEditLoyaltyCode({
+                    ...editLoyaltyCode,
+                    maxUses: Number(e.target.value),
+                  })
+                }
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2"
+                placeholder="Utilisations max"
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm text-white/80">
+              <input
+                type="checkbox"
+                checked={editLoyaltyCode.isActive}
+                onChange={(e) =>
+                  setEditLoyaltyCode({
+                    ...editLoyaltyCode,
+                    isActive: e.target.checked,
+                  })
+                }
+              />
+              Code actif
+            </label>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setEditLoyaltyCode(null)}
+                className="rounded-lg px-3 py-2 text-sm text-white/60"
+              >
+                Annuler
+              </button>
+              <button type="button" onClick={() => void saveLoyaltyCode()} className="btn-pink">
                 Enregistrer
               </button>
             </div>

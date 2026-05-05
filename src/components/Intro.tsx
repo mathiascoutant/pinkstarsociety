@@ -30,7 +30,7 @@ export default function Intro() {
             </Reveal>
           </h2>
 
-          <div className="mt-10 max-w-xl space-y-5 text-[15px] leading-relaxed text-white/70 md:text-base">
+          <div className="mt-10 max-w-xl space-y-5 font-serif text-[16px] leading-relaxed text-white/75 md:text-[18px]">
             <motion.p
               initial={{ opacity: 0, y: 14 }}
               whileInView={{ opacity: 1, y: 0 }}

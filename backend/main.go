@@ -74,6 +74,10 @@ func main() {
 	admin.POST("/service-types", h.CreateServiceType)
 	admin.PATCH("/service-types/:id", h.PatchServiceType)
 	admin.DELETE("/service-types/:id", h.DeleteServiceType)
+	admin.GET("/loyalty-codes", h.ListLoyaltyCodes)
+	admin.POST("/loyalty-codes", h.CreateLoyaltyCode)
+	admin.PATCH("/loyalty-codes/:id", h.PatchLoyaltyCode)
+	admin.DELETE("/loyalty-codes/:id", h.DeleteLoyaltyCode)
 
 	admin.GET("/bookings", h.AdminListBookings)
 	admin.GET("/bookings/summary", h.AdminBookingSummary)

@@ -5,15 +5,16 @@ module.exports = {
     extend: {
       colors: {
         pss: {
-          pink: "#ff2bb1",
-          hot: "#ff007a",
+          pink: "#f43f9b",
+          hot: "#d61e7c",
           ink: "#0a0a0c",
           chrome: "#c9c9d1",
           silver: "#e8e8ee",
         },
       },
       fontFamily: {
-        display: ["'Anton'", "Impact", "sans-serif"],
+        display: ["'Luckiest Guy'", "Impact", "sans-serif"],
+        serif: ["'Antic Didone'", "serif"],
         body: ["'Space Grotesk'", "system-ui", "sans-serif"],
         mono: ["'JetBrains Mono'", "monospace"],
       },

@@ -7,7 +7,7 @@ const steps = [
   {
     n: "01",
     title: "DM Instagram ou email",
-    desc: "Vous m'envoyez votre inspiration et vos disponibilités — on cale la date ensemble par message.",
+    desc: "Vous m'envoyez votre inspiration et vos disponibilités — on cale la date et on fixe un prix ensemble par message.",
     icon: "message" as const,
   },
   {
@@ -48,7 +48,7 @@ export default function Process() {
               <span className="text-white">simples.</span>
             </h2>
           </div>
-          <p className="max-w-sm text-sm text-white/55">
+          <p className="max-w-sm font-serif text-[15px] leading-relaxed text-white/65 md:text-base">
             Réservation directe, paiement clair, rendez-vous calibré, photos
             archivées dans votre espace personnel.
           </p>

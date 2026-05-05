@@ -45,6 +45,11 @@ func Connect(ctx context.Context, cfg *config.Config) (*mongo.Database, error) {
 				"qr_token": bson.M{"$exists": true, "$type": "string", "$ne": ""},
 			}),
 	})
+	loyaltyCodes := database.Collection("loyalty_codes")
+	_, _ = loyaltyCodes.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "code", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	})
 
 	return database, nil
 }

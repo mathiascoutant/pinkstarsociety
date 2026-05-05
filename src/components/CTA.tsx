@@ -47,7 +47,7 @@ export default function CTA() {
           </span>
         </motion.h2>
 
-        <p className="mx-auto mt-6 max-w-xl text-[15px] text-white/65">
+        <p className="mx-auto mt-6 max-w-xl font-serif text-[16px] leading-relaxed text-white/70 md:text-[18px]">
           Réservation en DM Instagram ou par email. Acompte 30% ou paiement
           total une fois la date calée. Vos photos arriveront dans votre
           espace personnel après le rendez-vous.
