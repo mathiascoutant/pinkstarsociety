@@ -69,13 +69,14 @@ func (h *Handlers) Register(c *gin.Context) {
 		loyaltyPoints = bonus
 	}
 	u := models.User{
-		FirstName:     strings.TrimSpace(body.FirstName),
-		LastName:      strings.TrimSpace(body.LastName),
-		Email:         email,
-		PasswordHash:  hash,
-		Role:          role,
-		LoyaltyPoints: loyaltyPoints,
-		CreatedAt:     time.Now().UTC(),
+		FirstName:            strings.TrimSpace(body.FirstName),
+		LastName:             strings.TrimSpace(body.LastName),
+		Email:                email,
+		PasswordHash:         hash,
+		Role:                 role,
+		LoyaltyPoints:        loyaltyPoints,
+		LoyaltyProgressCount: 0,
+		CreatedAt:            time.Now().UTC(),
 	}
 	u.QRToken = strings.ReplaceAll(uuid.New().String(), "-", "")
 	_, err = h.DB.Collection("users").InsertOne(ctx, u)
@@ -123,12 +124,13 @@ func (h *Handlers) Login(c *gin.Context) {
 		return
 	}
 	userOut := gin.H{
-		"id":            u.ID.Hex(),
-		"firstName":     u.FirstName,
-		"lastName":      u.LastName,
-		"email":         u.Email,
-		"role":          u.Role,
-		"loyaltyPoints": u.LoyaltyPoints,
+		"id":                   u.ID.Hex(),
+		"firstName":            u.FirstName,
+		"lastName":             u.LastName,
+		"email":                u.Email,
+		"role":                 u.Role,
+		"loyaltyPoints":        u.LoyaltyPoints,
+		"loyaltyProgressCount": u.LoyaltyProgressCount,
 	}
 	userOut["qrToken"] = u.QRToken
 	c.JSON(http.StatusOK, gin.H{
@@ -157,13 +159,14 @@ func (h *Handlers) Me(c *gin.Context) {
 		u.QRToken = tok
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"id":            u.ID.Hex(),
-		"firstName":     u.FirstName,
-		"lastName":      u.LastName,
-		"email":         u.Email,
-		"role":          u.Role,
-		"loyaltyPoints": u.LoyaltyPoints,
-		"qrToken":       u.QRToken,
+		"id":                   u.ID.Hex(),
+		"firstName":            u.FirstName,
+		"lastName":             u.LastName,
+		"email":                u.Email,
+		"role":                 u.Role,
+		"loyaltyPoints":        u.LoyaltyPoints,
+		"loyaltyProgressCount": u.LoyaltyProgressCount,
+		"qrToken":              u.QRToken,
 	})
 }
 

@@ -231,6 +231,14 @@ export default function AccountLoyaltyPage() {
     : "?";
 
   const points = user?.loyaltyPoints ?? 0;
+  const completedSessions = user?.loyaltyProgressCount ?? 0;
+  const progressPercent = Math.min((completedSessions / 10) * 100, 100);
+
+  const loyaltyMilestones = [
+    { sessions: 3, reward: "30%" },
+    { sessions: 5, reward: "50%" },
+    { sessions: 10, reward: "Offert" },
+  ] as const;
 
   return (
     <div className="relative min-h-screen bg-[#050507] text-white">
@@ -326,6 +334,40 @@ export default function AccountLoyaltyPage() {
                     <span className="text-xl font-body font-normal text-white/35 md:text-2xl">
                       pts
                     </span>
+                  </div>
+                  <div className="mt-6 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+                    <div className="mb-2 flex items-center justify-between text-[11px] uppercase tracking-[0.12em]">
+                      <span className="text-white/55">Progression fidélité</span>
+                      <span className="font-medium text-pss-pink">
+                        {completedSessions}/10 poses
+                      </span>
+                    </div>
+                    <div className="h-2.5 overflow-hidden rounded-full bg-white/[0.08]">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-pss-pink via-fuchsia-400 to-violet-400 transition-all duration-500"
+                        style={{ width: `${progressPercent}%` }}
+                      />
+                    </div>
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] leading-relaxed">
+                      {loyaltyMilestones.map((milestone) => {
+                        const reached = completedSessions >= milestone.sessions;
+                        return (
+                          <div
+                            key={milestone.sessions}
+                            className={`rounded-lg border px-2 py-2 text-center ${
+                              reached
+                                ? "border-pss-pink/35 bg-pss-pink/10 text-white"
+                                : "border-white/[0.08] bg-white/[0.02] text-white/45"
+                            }`}
+                          >
+                            <p className="font-medium">{milestone.sessions}e pose</p>
+                            <p className={reached ? "text-pss-pink" : "text-white/35"}>
+                              {milestone.reward}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                   <div className="mt-6 border-t border-white/[0.06] pt-4">
                     <div className="flex items-start gap-2.5 text-[13px] leading-relaxed text-white/40">

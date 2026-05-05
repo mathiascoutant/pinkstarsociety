@@ -87,9 +87,33 @@ func (h *Handlers) AdminCompleteService(c *gin.Context) {
 		return
 	}
 
-	_, err = h.DB.Collection("users").UpdateOne(ctx, bson.M{"_id": b.ClientUserID}, bson.M{
-		"$inc": bson.M{"loyalty_points": pts},
-	})
+	_, err = h.DB.Collection("users").UpdateOne(
+		ctx,
+		bson.M{"_id": b.ClientUserID},
+		bson.A{
+			bson.M{
+				"$set": bson.M{
+					"loyalty_points": bson.M{
+						"$add": bson.A{
+							bson.M{"$ifNull": bson.A{"$loyalty_points", 0}},
+							pts,
+						},
+					},
+					"loyalty_progress_count": bson.M{
+						"$mod": bson.A{
+							bson.M{
+								"$add": bson.A{
+									bson.M{"$ifNull": bson.A{"$loyalty_progress_count", 0}},
+									1,
+								},
+							},
+							10,
+						},
+					},
+				},
+			},
+		},
+	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "crédit des points impossible"})
 		return
@@ -99,9 +123,10 @@ func (h *Handlers) AdminCompleteService(c *gin.Context) {
 	_ = h.DB.Collection("users").FindOne(ctx, bson.M{"_id": b.ClientUserID}).Decode(&u2)
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok":          true,
-		"visitStatus": models.VisitCompleted,
-		"pointsAdded": pts,
-		"totalPoints": u2.LoyaltyPoints,
+		"ok":                   true,
+		"visitStatus":          models.VisitCompleted,
+		"pointsAdded":          pts,
+		"totalPoints":          u2.LoyaltyPoints,
+		"loyaltyProgressCount": u2.LoyaltyProgressCount,
 	})
 }

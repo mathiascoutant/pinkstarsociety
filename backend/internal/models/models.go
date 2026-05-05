@@ -19,15 +19,16 @@ const (
 )
 
 type User struct {
-	ID            primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	FirstName     string             `json:"firstName" bson:"first_name"`
-	LastName      string             `json:"lastName" bson:"last_name"`
-	Email         string             `json:"email" bson:"email"`
-	PasswordHash  string             `json:"-" bson:"password_hash"`
-	Role          string             `json:"role" bson:"role"`
-	QRToken       string             `json:"qrToken,omitempty" bson:"qr_token,omitempty"`
-	LoyaltyPoints int                `json:"loyaltyPoints" bson:"loyalty_points"`
-	CreatedAt     time.Time          `json:"createdAt" bson:"created_at"`
+	ID                   primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	FirstName            string             `json:"firstName" bson:"first_name"`
+	LastName             string             `json:"lastName" bson:"last_name"`
+	Email                string             `json:"email" bson:"email"`
+	PasswordHash         string             `json:"-" bson:"password_hash"`
+	Role                 string             `json:"role" bson:"role"`
+	QRToken              string             `json:"qrToken,omitempty" bson:"qr_token,omitempty"`
+	LoyaltyPoints        int                `json:"loyaltyPoints" bson:"loyalty_points"`
+	LoyaltyProgressCount int                `json:"loyaltyProgressCount" bson:"loyalty_progress_count"`
+	CreatedAt            time.Time          `json:"createdAt" bson:"created_at"`
 }
 
 type ServiceType struct {

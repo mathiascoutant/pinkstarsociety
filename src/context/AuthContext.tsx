@@ -16,6 +16,7 @@ export type User = {
   email: string;
   role: "client" | "admin";
   loyaltyPoints?: number;
+  loyaltyProgressCount?: number;
   /** Présent pour tout compte (client ou admin) après login /me */
   qrToken?: string;
 };
