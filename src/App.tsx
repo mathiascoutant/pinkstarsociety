@@ -6,6 +6,7 @@ import AccountLoyaltyPage from "./pages/AccountLoyaltyPage";
 import AccountPage from "./pages/AccountPage";
 import AdminPage from "./pages/AdminPage";
 import LoginPage from "./pages/LoginPage";
+import AboutPage from "./pages/AboutPage";
 import PaymentSuccessPage from "./pages/PaymentSuccessPage";
 import RegisterPage from "./pages/RegisterPage";
 import ReservationPage from "./pages/ReservationPage";
@@ -49,6 +50,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
+      <Route path="/a-propos" element={<AboutPage />} />
       <Route path="/connexion" element={<LoginPage />} />
       <Route path="/inscription" element={<RegisterPage />} />
       <Route

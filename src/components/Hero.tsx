@@ -2,6 +2,7 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
 
 const INSTA_URL = "https://instagram.com/pinkstar_society";
+const MAIL_URL = "mailto:contact@pinkstarsociety.fr";
 
 export default function Hero() {
   const ref = useRef<HTMLElement>(null);
@@ -77,6 +78,13 @@ export default function Hero() {
             >
               <InstaIcon />
               Prendre rendez-vous
+            </a>
+            <a
+              href={MAIL_URL}
+              className="btn-chrome justify-center sm:justify-start"
+            >
+              <MailIcon />
+              Demande par mail
             </a>
             <a
               href="#process"
@@ -213,19 +221,19 @@ function StarMark() {
     <div className="relative grid place-items-center">
       {/* Outer pulsing pink halo */}
       <motion.div
-        animate={{ opacity: [0.55, 1, 0.55], scale: [1, 1.08, 1] }}
+        animate={{ opacity: [0.3, 0.55, 0.3], scale: [1, 1.05, 1] }}
         transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
         className="pointer-events-none absolute inset-0 -z-10 grid place-items-center"
       >
-        <div className="h-72 w-72 rounded-full bg-pss-pink/55 blur-3xl md:h-[28rem] md:w-[28rem]" />
+        <div className="h-72 w-72 rounded-full bg-pss-pink/30 blur-3xl md:h-[28rem] md:w-[28rem]" />
       </motion.div>
       {/* Inner hot core */}
       <motion.div
-        animate={{ opacity: [0.5, 0.9, 0.5] }}
+        animate={{ opacity: [0.22, 0.45, 0.22] }}
         transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
         className="pointer-events-none absolute inset-0 -z-10 grid place-items-center"
       >
-        <div className="h-44 w-44 rounded-full bg-fuchsia-400/60 blur-2xl md:h-72 md:w-72" />
+        <div className="h-44 w-44 rounded-full bg-fuchsia-400/28 blur-2xl md:h-72 md:w-72" />
       </motion.div>
 
       <img
@@ -234,13 +242,8 @@ function StarMark() {
         loading="eager"
         decoding="async"
         style={{
-          mixBlendMode: "screen",
-          WebkitMaskImage:
-            "radial-gradient(circle at center, #000 60%, rgba(0,0,0,0.7) 75%, transparent 90%)",
-          maskImage:
-            "radial-gradient(circle at center, #000 60%, rgba(0,0,0,0.7) 75%, transparent 90%)",
           filter:
-            "drop-shadow(0 0 35px rgba(244,63,155,0.95)) drop-shadow(0 0 70px rgba(255,182,221,0.6)) saturate(1.15)",
+            "drop-shadow(0 0 20px rgba(244,63,155,0.65)) drop-shadow(0 0 38px rgba(255,182,221,0.32)) brightness(0.9)",
         }}
         className="h-80 w-80 select-none object-contain md:h-[30rem] md:w-[30rem]"
         onError={(e) => {
@@ -368,3 +371,25 @@ function InstaIcon() {
   );
 }
 
+function MailIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+      <rect
+        x="3"
+        y="5"
+        width="18"
+        height="14"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+      <path
+        d="m4 7 8 6 8-6"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}

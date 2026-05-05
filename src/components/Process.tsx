@@ -1,8 +1,5 @@
 import { motion } from "framer-motion";
 
-const INSTA_URL = "https://instagram.com/pinkstar_society";
-const MAIL_URL = "mailto:contact@pinkstarsociety.fr";
-
 const steps = [
   {
     n: "01",
@@ -13,19 +10,19 @@ const steps = [
   {
     n: "02",
     title: "Acompte ou paiement total",
-    desc: "30% d'acompte ou paiement complet, par lien sécurisé Stripe. Le créneau est bloqué.",
+    desc: "",
     icon: "card" as const,
   },
   {
     n: "03",
     title: "Rendez-vous",
-    desc: "Pose, soin, finitions. Le temps nécessaire, sans rendez-vous superposés.",
+    desc: "",
     icon: "clock" as const,
   },
   {
     n: "04",
     title: "Galerie privée",
-    desc: "Vos photos vous attendent dans l'onglet Galerie de votre espace personnel — séance après séance.",
+    desc: "",
     icon: "camera" as const,
   },
 ];
@@ -44,14 +41,9 @@ export default function Process() {
           <div className="max-w-2xl">
             <SectionLabel n="02" label="Comment ça se passe" />
             <h2 className="mt-6 font-display text-5xl uppercase leading-[0.92] tracking-tight md:text-6xl">
-              <span className="chrome-pink">Quatre étapes,</span>{" "}
-              <span className="text-white">simples.</span>
+              <span className="chrome-pink">Avoir un créneau</span>
             </h2>
           </div>
-          <p className="max-w-sm font-serif text-[15px] leading-relaxed text-white/65 md:text-base">
-            Réservation directe, paiement clair, rendez-vous calibré, photos
-            archivées dans votre espace personnel.
-          </p>
         </div>
 
         <div className="relative mt-16 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4 lg:gap-5">
@@ -76,45 +68,15 @@ export default function Process() {
               <h3 className="mt-6 font-display text-2xl uppercase leading-tight text-white">
                 {s.title}
               </h3>
-              <p className="mt-2 text-[14px] leading-relaxed text-white/55">
-                {s.desc}
-              </p>
+              {s.desc ? (
+                <p className="mt-2 text-[14px] leading-relaxed text-white/55">
+                  {s.desc}
+                </p>
+              ) : null}
             </motion.div>
           ))}
         </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="mt-14 flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-white/10 bg-white/[0.025] p-6 md:p-8"
-        >
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.22em] text-white/45">
-              Prêt·e
-            </div>
-            <div className="mt-1 font-display text-2xl uppercase leading-tight text-white md:text-3xl">
-              On commence par{" "}
-              <span className="chrome-pink">un message.</span>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <a
-              href={INSTA_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="btn-pink"
-            >
-              <InstaIconSmall />
-              DM Instagram
-            </a>
-            <a href={MAIL_URL} className="btn-chrome">
-              <MailIconSmall />
-              Email
-            </a>
-          </div>
-        </motion.div>
       </div>
     </section>
   );
@@ -188,47 +150,6 @@ function Icon({
         </svg>
       );
   }
-}
-
-function InstaIconSmall() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-      <rect
-        x="3"
-        y="3"
-        width="18"
-        height="18"
-        rx="5"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
-      <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="2" />
-      <circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" />
-    </svg>
-  );
-}
-
-function MailIconSmall() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-      <rect
-        x="3"
-        y="5"
-        width="18"
-        height="14"
-        rx="2"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
-      <path
-        d="m4 7 8 6 8-6"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
 }
 
 function SectionLabel({ n, label }: { n: string; label: string }) {

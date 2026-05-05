@@ -95,11 +95,6 @@ export default function LoginPage() {
           </motion.div>
         </div>
 
-        {/* BOTTOM */}
-        <div className="relative z-10 flex items-center justify-between text-[10px] uppercase tracking-[0.32em] text-white/40">
-          <span>★ Bordeaux · sur rendez-vous</span>
-          <span className="font-mono">PSS / 2026</span>
-        </div>
       </aside>
 
       {/* ──────────────── RIGHT FORM PANEL ──────────────── */}
@@ -237,12 +232,8 @@ export default function LoginPage() {
           </motion.div>
         </div>
 
-        {/* Footer mini line — desktop right panel */}
-        <div className="hidden items-center justify-between px-12 py-6 text-[10px] uppercase tracking-[0.32em] text-white/30 lg:flex xl:px-16">
-          <span>Espace sécurisé · données chiffrées</span>
-          <span className="font-mono">PSS</span>
-        </div>
       </main>
+
     </div>
   );
 }
@@ -315,13 +306,8 @@ function BrandStar() {
         loading="eager"
         decoding="async"
         style={{
-          mixBlendMode: "screen",
-          WebkitMaskImage:
-            "radial-gradient(circle at center, #000 60%, rgba(0,0,0,0.7) 75%, transparent 90%)",
-          maskImage:
-            "radial-gradient(circle at center, #000 60%, rgba(0,0,0,0.7) 75%, transparent 90%)",
           filter:
-            "drop-shadow(0 0 30px rgba(244,63,155,0.95)) drop-shadow(0 0 60px rgba(255,182,221,0.55)) saturate(1.1)",
+            "drop-shadow(0 0 20px rgba(244,63,155,0.65)) drop-shadow(0 0 38px rgba(255,182,221,0.32)) brightness(0.9)",
         }}
         className="relative z-10 h-full w-full select-none object-contain"
         onError={(e) => {

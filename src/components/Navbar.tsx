@@ -3,8 +3,11 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-const links = [
-  { label: "À propos", href: "#apropos" },
+const links: Array<
+  | { label: string; href: string; to?: never }
+  | { label: string; to: string; href?: never }
+> = [
+  { label: "À propos", to: "/a-propos" },
   { label: "Process", href: "#process" },
   { label: "Avis", href: "#echos" },
   { label: "Contact", href: "#contact" },
@@ -44,14 +47,25 @@ export default function Navbar() {
 
         <nav className="hidden items-center gap-1 md:flex">
           {links.map((l) => (
-            <a
-              key={l.href}
-              href={l.href}
-              className="group relative rounded-full px-4 py-2 text-[13px] uppercase tracking-[0.18em] text-white/70 transition hover:text-white"
-            >
-              {l.label}
-              <span className="absolute inset-x-4 bottom-1 h-px origin-left scale-x-0 bg-pss-pink transition-transform duration-300 group-hover:scale-x-100" />
-            </a>
+            l.to ? (
+              <Link
+                key={l.to}
+                to={l.to}
+                className="group relative rounded-full px-4 py-2 text-[13px] uppercase tracking-[0.18em] text-white/70 transition hover:text-white"
+              >
+                {l.label}
+                <span className="absolute inset-x-4 bottom-1 h-px origin-left scale-x-0 bg-pss-pink transition-transform duration-300 group-hover:scale-x-100" />
+              </Link>
+            ) : (
+              <a
+                key={l.href}
+                href={l.href}
+                className="group relative rounded-full px-4 py-2 text-[13px] uppercase tracking-[0.18em] text-white/70 transition hover:text-white"
+              >
+                {l.label}
+                <span className="absolute inset-x-4 bottom-1 h-px origin-left scale-x-0 bg-pss-pink transition-transform duration-300 group-hover:scale-x-100" />
+              </a>
+            )
           ))}
         </nav>
 
@@ -71,12 +85,10 @@ export default function Navbar() {
                 Connexion
               </Link>
               <a
-                href="https://instagram.com/pinkstar_society"
-                target="_blank"
-                rel="noreferrer"
+                href="/inscription"
                 className="btn-pink"
               >
-                Réserver
+                Inscription
                 <Arrow />
               </a>
             </>
@@ -108,14 +120,25 @@ export default function Navbar() {
       >
         <div className="flex flex-col gap-1 px-5 py-4">
           {links.map((l) => (
-            <a
-              key={l.href}
-              href={l.href}
-              onClick={() => setOpen(false)}
-              className="rounded-xl px-4 py-3 text-sm uppercase tracking-[0.18em] text-white/80 hover:bg-white/5"
-            >
-              {l.label}
-            </a>
+            l.to ? (
+              <Link
+                key={l.to}
+                to={l.to}
+                onClick={() => setOpen(false)}
+                className="rounded-xl px-4 py-3 text-sm uppercase tracking-[0.18em] text-white/80 hover:bg-white/5"
+              >
+                {l.label}
+              </Link>
+            ) : (
+              <a
+                key={l.href}
+                href={l.href}
+                onClick={() => setOpen(false)}
+                className="rounded-xl px-4 py-3 text-sm uppercase tracking-[0.18em] text-white/80 hover:bg-white/5"
+              >
+                {l.label}
+              </a>
+            )
           ))}
           <div className="mt-2 flex flex-col gap-1 border-t border-white/5 pt-3">
             {user ? (
@@ -167,13 +190,11 @@ export default function Navbar() {
                   Connexion
                 </Link>
                 <a
-                  href="https://instagram.com/pinkstar_society"
-                  target="_blank"
-                  rel="noreferrer"
+                  href="/inscription"
                   onClick={() => setOpen(false)}
                   className="btn-pink self-start"
                 >
-                  Réserver
+                  Inscription
                   <Arrow />
                 </a>
               </>

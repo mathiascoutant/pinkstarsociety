@@ -8,11 +8,11 @@ export default function Footer() {
 
       <div className="relative mx-auto max-w-[1400px] px-5 py-16 md:px-10 md:py-20">
         {/* CENTERED WORDMARK */}
-        <div className="overflow-hidden text-center">
-          <h2 className="font-display uppercase leading-[0.85] tracking-tight chrome-text">
-            <span className="block text-[22vw] sm:hidden">PinkStar</span>
-            <span className="block text-[22vw] sm:hidden">Society</span>
-            <span className="hidden whitespace-nowrap sm:block sm:text-[15vw] md:text-[13vw] lg:text-[13vw]">
+        <div className="pt-2 text-center">
+          <h2 className="font-display uppercase leading-[0.92] tracking-[-0.02em] chrome-text sm:tracking-tight">
+            <span className="block text-[19vw] sm:hidden">PinkStar</span>
+            <span className="block text-[19vw] sm:hidden">Society</span>
+            <span className="hidden whitespace-nowrap sm:block sm:text-[12vw] md:text-[10vw] lg:text-[8.6vw]">
               PinkStarSociety
             </span>
           </h2>

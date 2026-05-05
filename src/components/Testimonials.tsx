@@ -78,7 +78,7 @@ export default function Testimonials() {
             <h2 className="mt-6 font-display text-5xl uppercase leading-[0.92] tracking-tight md:text-6xl">
               <span className="text-white">Ce qu'</span>
               <span className="chrome-pink">iels</span>
-              <span className="text-white"> en disent.</span>
+              <span className="text-white"> en disent</span>
             </h2>
           </div>
           <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] text-white/50">
