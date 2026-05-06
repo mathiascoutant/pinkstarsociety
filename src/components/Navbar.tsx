@@ -8,6 +8,7 @@ const links: Array<
   | { label: string; to: string; href?: never }
 > = [
   { label: "À propos", to: "/a-propos" },
+  { label: "Disponibilités", to: "/disponibilites" },
   { label: "Process", href: "#process" },
   { label: "Avis", href: "#echos" },
   { label: "Contact", href: "#contact" },

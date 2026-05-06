@@ -24,6 +24,10 @@ type recapMailData struct {
 	ReservationURL  string
 	// payKind: full | deposit | balance (pour variantes du message)
 	PayKind string
+	// Si vrai, on inclut le QR de présence (mode invité uniquement).
+	HasQR bool
+	// URL absolue vers le PNG du QR (servi par l'API publique).
+	QRImageURL string
 }
 
 var recapHTMLTmpl = template.Must(template.New("recap").Parse(`
@@ -90,6 +94,16 @@ var recapHTMLTmpl = template.Must(template.New("recap").Parse(`
                   </td>
                 </tr>
               </table>
+              {{if .HasQR}}
+              <div style="margin-top:24px;padding:22px;border-radius:14px;background:rgba(255,43,177,0.08);border:1px solid rgba(255,43,177,0.25);text-align:center;">
+                <p style="margin:0 0 4px;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#ff8ecf;">QR de présence</p>
+                <p style="margin:0 0 16px;font-size:13px;line-height:1.55;color:rgba(255,255,255,0.72);">
+                  Présente ce QR à ton arrivée. <strong style="color:#fff;">Usage unique</strong> — il sera invalidé après le 1er scan.
+                </p>
+                <img src="{{.QRImageURL}}" alt="QR de présence" width="220" height="220" style="display:inline-block;border-radius:14px;background:#fff;padding:12px;" />
+                <p style="margin:14px 0 0;font-size:12px;color:rgba(255,255,255,0.5);">Si l'image ne s'affiche pas, ouvre le lien : <a href="{{.QRImageURL}}" style="color:#ff8ecf;text-decoration:underline;">afficher mon QR</a></p>
+              </div>
+              {{end}}
               <div style="text-align:center;margin:28px 0 8px;">
                 <a href="{{.ReservationURL}}" style="display:inline-block;padding:14px 32px;border-radius:999px;font-size:13px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;color:#fff;background:linear-gradient(180deg,#ff5cb6 0%,#ff007a 50%,#b00056 100%);box-shadow:0 0 24px rgba(255,0,122,0.45),0 8px 24px rgba(0,0,0,0.4);">
                   Voir ma réservation
@@ -126,8 +140,10 @@ func recapSubject(payKind string) string {
 	}
 }
 
-// SendPaymentRecap envoie la confirmation (HTML + texte brut) au client après chaque paiement Stripe réussi (acompte, solde ou total).
-func SendPaymentRecap(cfg *config.Config, to string, b models.Booking, payKind string, amountCents int64) error {
+// SendPaymentRecap envoie la confirmation (HTML + texte brut) au client après
+// chaque paiement Stripe réussi. Si `guestQRToken` est non vide, on intègre
+// le QR de présence en pièce jointe inline (réservé au mode invité).
+func SendPaymentRecap(cfg *config.Config, to string, b models.Booking, payKind string, amountCents int64, guestQRToken string) error {
 	if cfg.SMTPHost == "" || cfg.EmailFrom == "" || to == "" {
 		return nil
 	}
@@ -139,6 +155,11 @@ func SendPaymentRecap(cfg *config.Config, to string, b models.Booking, payKind s
 
 	resURL := strings.TrimRight(cfg.FrontendURL, "/") + "/reservation/" + b.PublicToken
 
+	hasQR := strings.TrimSpace(guestQRToken) != ""
+	qrImageURL := ""
+	if hasQR {
+		qrImageURL = strings.TrimRight(cfg.FrontendURL, "/") + "/api/public/bookings/" + b.PublicToken + "/qr.png"
+	}
 	data := recapMailData{
 		ServiceTypeName: b.ServiceTypeName,
 		Date:            b.Date,
@@ -149,6 +170,8 @@ func SendPaymentRecap(cfg *config.Config, to string, b models.Booking, payKind s
 		Description:     desc,
 		ReservationURL:  resURL,
 		PayKind:         payKind,
+		HasQR:           hasQR,
+		QRImageURL:      qrImageURL,
 	}
 
 	var htmlBuf bytes.Buffer
@@ -156,7 +179,7 @@ func SendPaymentRecap(cfg *config.Config, to string, b models.Booking, payKind s
 		return err
 	}
 
-	plain := plainRecapBody(b, payKind, payFr, amount, desc, resURL)
+	plain := plainRecapBody(b, payKind, payFr, amount, desc, resURL, guestQRToken, qrImageURL)
 	msg, err := buildMultipartMessage(cfg.EmailFrom, to, subject, plain, htmlBuf.String())
 	if err != nil {
 		return err
@@ -164,7 +187,7 @@ func SendPaymentRecap(cfg *config.Config, to string, b models.Booking, payKind s
 	return SendMessage(cfg, cfg.EmailFrom, to, msg)
 }
 
-func plainRecapBody(b models.Booking, payKind, payFr string, amount float64, desc, resURL string) string {
+func plainRecapBody(b models.Booking, payKind, payFr string, amount float64, desc, resURL, guestQRToken, qrImageURL string) string {
 	var sb strings.Builder
 	sb.WriteString("Bonjour,\n\n")
 	switch payKind {
@@ -192,6 +215,17 @@ func plainRecapBody(b models.Booking, payKind, payFr string, amount float64, des
 	if desc != "" {
 		sb.WriteString("— Note : ")
 		sb.WriteString(desc)
+		sb.WriteString("\n")
+	}
+	if strings.TrimSpace(guestQRToken) != "" {
+		sb.WriteString("\nQR de présence (usage unique — à montrer à l'arrivée)\n")
+		if qrImageURL != "" {
+			sb.WriteString("Affiche-le : ")
+			sb.WriteString(qrImageURL)
+			sb.WriteString("\n")
+		}
+		sb.WriteString("Code : PSS:")
+		sb.WriteString(guestQRToken)
 		sb.WriteString("\n")
 	}
 	sb.WriteString("\nLien réservation : ")

@@ -405,6 +405,21 @@ export default function AdminPage() {
               {label}
             </button>
           ))}
+          <Link
+            to="/admin/disponibilites"
+            className="ml-auto inline-flex items-center gap-2 rounded-full border border-pss-pink/40 bg-pss-pink/15 px-4 py-2 text-xs uppercase tracking-[0.16em] text-pss-pink transition hover:bg-pss-pink/25"
+          >
+            Disponibilités
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M5 12h14M13 5l7 7-7 7"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </Link>
         </div>
 
         {err && (

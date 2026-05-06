@@ -74,4 +74,12 @@ type Booking struct {
 	CreatedAt             time.Time          `json:"createdAt" bson:"created_at"`
 	UpdatedAt             time.Time          `json:"updatedAt" bson:"updated_at"`
 	LastPaymentIntent     string             `json:"-" bson:"last_payment_intent,omitempty"`
+
+	// QR de présence pour les paiements en mode INVITÉ (sans compte client).
+	// Généré au 1er paiement (acompte ou totalité), reste identique tant que le
+	// booking est en mode invité. Single-use : `GuestQRUsed` passe à true au
+	// premier scan validé. Pour les clients connectés, on utilise `users.qr_token`
+	// qui est multi-usage.
+	GuestQRToken string `json:"-" bson:"guest_qr_token,omitempty"`
+	GuestQRUsed  bool   `json:"-" bson:"guest_qr_used,omitempty"`
 }

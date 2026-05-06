@@ -93,6 +93,8 @@ func main() {
 	pub.POST("/bookings/confirm", h.ConfirmCheckoutSession)
 	pub.GET("/bookings/:token/facture.pdf", h.DownloadInvoice)
 	pub.GET("/bookings/:token/agenda.ics", h.CalendarICS)
+	pub.GET("/bookings/:token/qr.png", h.GetPublicBookingQR)
+	pub.GET("/availability/:year/:month", h.GetPublicAvailability)
 
 	r.POST("/api/stripe/webhook", h.StripeWebhook)
 

@@ -7,6 +7,8 @@ import AccountPage from "./pages/AccountPage";
 import AdminPage from "./pages/AdminPage";
 import LoginPage from "./pages/LoginPage";
 import AboutPage from "./pages/AboutPage";
+import AvailabilityPage from "./pages/AvailabilityPage";
+import AdminAvailabilityPage from "./pages/AdminAvailabilityPage";
 import PaymentSuccessPage from "./pages/PaymentSuccessPage";
 import RegisterPage from "./pages/RegisterPage";
 import ReservationPage from "./pages/ReservationPage";
@@ -51,6 +53,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/a-propos" element={<AboutPage />} />
+      <Route path="/disponibilites" element={<AvailabilityPage />} />
       <Route path="/connexion" element={<LoginPage />} />
       <Route path="/inscription" element={<RegisterPage />} />
       <Route
@@ -58,6 +61,14 @@ export default function App() {
         element={
           <AdminRoute>
             <AdminPage />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/disponibilites"
+        element={
+          <AdminRoute>
+            <AdminAvailabilityPage />
           </AdminRoute>
         }
       />
