@@ -18,6 +18,8 @@ type PublicBooking = {
   canPayFull: boolean;
   canPayBalance: boolean;
   paidLabel: string;
+  /** true si la même demi-journée a déjà été réservée par quelqu'un d'autre. */
+  slotTaken?: boolean;
 };
 
 type PayKind = "full" | "deposit" | "balance";
@@ -159,7 +161,47 @@ export default function ReservationPage() {
           )}
         </div>
 
-        {data.paymentStatus !== "paid" && (
+        {data.slotTaken && (
+          <div className="mt-8 overflow-hidden rounded-2xl border border-red-400/30 bg-red-500/[0.07] p-6">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full border border-red-400/40 bg-red-500/15 text-lg text-red-300">
+                ✕
+              </span>
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.22em] text-red-300/85">
+                  Offre plus valable
+                </div>
+                <h2 className="mt-1 font-display text-xl uppercase tracking-[0.06em] text-white sm:text-2xl">
+                  Désolé, ce créneau vient d'être réservé.
+                </h2>
+                <p className="mt-3 text-sm leading-relaxed text-white/70">
+                  Une autre personne a confirmé son rendez-vous sur la même
+                  demi-journée. Le paiement n'est plus possible pour cette
+                  offre.
+                </p>
+                <p className="mt-3 text-sm leading-relaxed text-white/70">
+                  Tu peux m'envoyer un message en DM Instagram pour qu'on te
+                  propose un nouveau créneau.
+                </p>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <a
+                    href="https://instagram.com/pinkstar_society"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn-pink"
+                  >
+                    DM @pinkstar_society
+                  </a>
+                  <Link to="/disponibilites" className="btn-chrome">
+                    Voir d'autres dates
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!data.slotTaken && data.paymentStatus !== "paid" && (
           <div className="mt-8 flex flex-col gap-3">
             {data.canPayDeposit && (
               <button
