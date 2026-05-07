@@ -15,6 +15,7 @@ body,
 
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 body {
@@ -94,6 +95,24 @@ body {
   .btn-pink:hover {
     transform: translateY(-2px);
     filter: brightness(1.1);
+  }
+
+  .input {
+    width: 100%;
+    border-radius: 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 0.5rem 0.75rem;
+    color: white;
+    font-size: 0.875rem;
+    transition: border-color 0.2s;
+  }
+  .input:focus {
+    outline: none;
+    border-color: rgba(244, 63, 155, 0.5);
+  }
+  .input::placeholder {
+    color: rgba(255, 255, 255, 0.35);
   }
 
   .glass-card {

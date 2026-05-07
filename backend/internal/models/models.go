@@ -67,6 +67,8 @@ type Booking struct {
 	VisitStatus           string             `json:"visitStatus,omitempty" bson:"visit_status,omitempty"`
 	VisitPointsAwarded    bool               `json:"visitPointsAwarded" bson:"visit_points_awarded"`
 	CustomerEmail         string             `json:"-" bson:"customer_email,omitempty"`
+	GuestFirstName        string             `json:"-" bson:"guest_first_name,omitempty"`
+	GuestLastName         string             `json:"-" bson:"guest_last_name,omitempty"`
 	NotifiedSessionIDs    []string           `json:"-" bson:"notified_session_ids,omitempty"`
 	StripeSessionID       string             `json:"-" bson:"stripe_session_id,omitempty"`
 	GoogleCalendarEventID string             `json:"-" bson:"google_calendar_event_id,omitempty"`

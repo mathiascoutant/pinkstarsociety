@@ -47,6 +47,11 @@ export default function ReservationPage() {
   const [err, setErr] = useState<string | null>(null);
   const [payBusy, setPayBusy] = useState<string | null>(null);
   const [authModal, setAuthModal] = useState(false);
+  const [guestModal, setGuestModal] = useState(false);
+  const [guestFirst, setGuestFirst] = useState("");
+  const [guestLast, setGuestLast] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestErr, setGuestErr] = useState<string | null>(null);
   const [pendingKind, setPendingKind] = useState<PayKind | null>(null);
 
   useEffect(() => {
@@ -66,13 +71,18 @@ export default function ReservationPage() {
     };
   }, [token]);
 
-  async function checkout(kind: PayKind) {
+  async function checkout(
+    kind: PayKind,
+    guest?: { firstName: string; lastName: string; email: string },
+  ) {
     if (!token) return;
     setPayBusy(kind);
     try {
+      const body: Record<string, unknown> = { kind };
+      if (guest) body.guest = guest;
       const res = await api<{ url: string }>(
         `/public/bookings/${token}/checkout`,
-        { method: "POST", body: JSON.stringify({ kind }) },
+        { method: "POST", body: JSON.stringify(body) },
       );
       window.location.href = res.url;
     } catch (e) {
@@ -99,10 +109,27 @@ export default function ReservationPage() {
   }
 
   function continueAsGuest() {
-    const k = pendingKind;
     setAuthModal(false);
+    setGuestErr(null);
+    setGuestModal(true);
+  }
+
+  function submitGuest() {
+    const first = guestFirst.trim();
+    const last = guestLast.trim();
+    const email = guestEmail.trim();
+    if (!first || !last) {
+      setGuestErr("Renseigne ton prénom et ton nom.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setGuestErr("Adresse e-mail invalide.");
+      return;
+    }
+    const k = pendingKind;
+    setGuestModal(false);
     setPendingKind(null);
-    if (k) void checkout(k);
+    if (k) void checkout(k, { firstName: first, lastName: last, email });
   }
 
   if (err) {
@@ -264,6 +291,74 @@ export default function ReservationPage() {
           </div>
         )}
       </div>
+
+      {guestModal && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="guest-form-title"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0c0c10] p-6 shadow-xl shadow-pss-pink/10">
+            <h2
+              id="guest-form-title"
+              className="font-display text-lg uppercase tracking-[0.12em] text-white"
+            >
+              Tes informations
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-white/65">
+              On en a besoin pour t'envoyer ta confirmation et ton QR de présence par e-mail.
+            </p>
+            <div className="mt-5 flex flex-col gap-3">
+              <input
+                type="text"
+                placeholder="Prénom"
+                value={guestFirst}
+                onChange={(e) => setGuestFirst(e.target.value)}
+                autoComplete="given-name"
+                className="rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-sm text-white placeholder:text-white/35 focus:border-pss-pink/50 focus:outline-none"
+              />
+              <input
+                type="text"
+                placeholder="Nom"
+                value={guestLast}
+                onChange={(e) => setGuestLast(e.target.value)}
+                autoComplete="family-name"
+                className="rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-sm text-white placeholder:text-white/35 focus:border-pss-pink/50 focus:outline-none"
+              />
+              <input
+                type="email"
+                placeholder="Adresse e-mail"
+                value={guestEmail}
+                onChange={(e) => setGuestEmail(e.target.value)}
+                autoComplete="email"
+                className="rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-sm text-white placeholder:text-white/35 focus:border-pss-pink/50 focus:outline-none"
+              />
+              {guestErr && (
+                <p className="text-xs text-red-400">{guestErr}</p>
+              )}
+              <button
+                type="button"
+                onClick={submitGuest}
+                className="btn-pink w-full justify-center"
+              >
+                Continuer vers le paiement
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setGuestModal(false);
+                  setPendingKind(null);
+                  setGuestErr(null);
+                }}
+                className="text-center text-xs uppercase tracking-[0.16em] text-white/40 hover:text-white/60"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {authModal && (
         <div

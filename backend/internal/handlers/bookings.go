@@ -409,6 +409,17 @@ func bookingToJSON(b models.Booking) gin.H {
 	if !b.ClientUserID.IsZero() {
 		out["clientUserId"] = b.ClientUserID.Hex()
 	}
+	if b.ClientUserID.IsZero() {
+		if s := strings.TrimSpace(b.GuestFirstName); s != "" {
+			out["guestFirstName"] = s
+		}
+		if s := strings.TrimSpace(b.GuestLastName); s != "" {
+			out["guestLastName"] = s
+		}
+		if s := strings.TrimSpace(b.CustomerEmail); s != "" {
+			out["guestEmail"] = s
+		}
+	}
 	if b.BalancePaidMethod != "" {
 		out["balancePaidMethod"] = b.BalancePaidMethod
 		out["balancePaidLabelFR"] = balancePaidMethodLabelFR(b.BalancePaidMethod)

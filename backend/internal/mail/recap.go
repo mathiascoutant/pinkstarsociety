@@ -2,12 +2,15 @@ package mail
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"html/template"
 	"mime"
 	"mime/multipart"
 	"net/textproto"
 	"strings"
+
+	qrcode "github.com/skip2/go-qrcode"
 
 	"pinkstarsociety/internal/config"
 	"pinkstarsociety/internal/models"
@@ -26,8 +29,10 @@ type recapMailData struct {
 	PayKind string
 	// Si vrai, on inclut le QR de présence (mode invité uniquement).
 	HasQR bool
-	// URL absolue vers le PNG du QR (servi par l'API publique).
-	QRImageURL string
+	// URL absolue (ou cid:) vers le PNG du QR. Typée `template.URL` pour
+	// éviter que html/template ne filtre le scheme `cid:` (sanitization
+	// agressive sur les URLs inconnues, qui réécrit en `#ZgotmplZ`).
+	QRImageURL template.URL
 }
 
 var recapHTMLTmpl = template.Must(template.New("recap").Parse(`
@@ -156,9 +161,20 @@ func SendPaymentRecap(cfg *config.Config, to string, b models.Booking, payKind s
 	resURL := strings.TrimRight(cfg.FrontendURL, "/") + "/reservation/" + b.PublicToken
 
 	hasQR := strings.TrimSpace(guestQRToken) != ""
-	qrImageURL := ""
+	qrPublicURL := ""
+	var qrPNG []byte
 	if hasQR {
-		qrImageURL = strings.TrimRight(cfg.FrontendURL, "/") + "/api/public/bookings/" + b.PublicToken + "/qr.png"
+		qrPublicURL = strings.TrimRight(cfg.FrontendURL, "/") + "/api/public/bookings/" + b.PublicToken + "/qr.png"
+		if png, err := qrcode.Encode("PSS:"+strings.TrimSpace(guestQRToken), qrcode.Medium, 512); err == nil {
+			qrPNG = png
+		}
+	}
+	// Image inline (CID) : la plupart des clients mail bloquent les images
+	// distantes. On embarque le PNG dans le message pour qu'il s'affiche
+	// systématiquement.
+	qrSrc := qrPublicURL
+	if len(qrPNG) > 0 {
+		qrSrc = "cid:qr-presence@pinkstar"
 	}
 	data := recapMailData{
 		ServiceTypeName: b.ServiceTypeName,
@@ -171,7 +187,7 @@ func SendPaymentRecap(cfg *config.Config, to string, b models.Booking, payKind s
 		ReservationURL:  resURL,
 		PayKind:         payKind,
 		HasQR:           hasQR,
-		QRImageURL:      qrImageURL,
+		QRImageURL:      template.URL(qrSrc),
 	}
 
 	var htmlBuf bytes.Buffer
@@ -179,8 +195,8 @@ func SendPaymentRecap(cfg *config.Config, to string, b models.Booking, payKind s
 		return err
 	}
 
-	plain := plainRecapBody(b, payKind, payFr, amount, desc, resURL, guestQRToken, qrImageURL)
-	msg, err := buildMultipartMessage(cfg.EmailFrom, to, subject, plain, htmlBuf.String())
+	plain := plainRecapBody(b, payKind, payFr, amount, desc, resURL, guestQRToken, qrPublicURL)
+	msg, err := buildRecapMessage(cfg.EmailFrom, to, subject, plain, htmlBuf.String(), qrPNG)
 	if err != nil {
 		return err
 	}
@@ -232,6 +248,96 @@ func plainRecapBody(b models.Booking, payKind, payFr string, amount float64, des
 	sb.WriteString(resURL)
 	sb.WriteString("\n\n— Pink Star Society\n")
 	return sb.String()
+}
+
+// buildRecapMessage construit le mail. Si `qrPNG` est non-nul, on utilise
+// la structure recommandée : multipart/alternative > [ text/plain ,
+// multipart/related > [ text/html , image inline (CID) ] ]. Cette imbrication
+// est mieux supportée par Apple Mail / Gmail / Outlook que l'inverse.
+func buildRecapMessage(from, to, subject, plain, html string, qrPNG []byte) ([]byte, error) {
+	if len(qrPNG) == 0 {
+		return buildMultipartMessage(from, to, subject, plain, html)
+	}
+	encSub := mime.QEncoding.Encode("utf-8", subject)
+
+	// 1) multipart/related : html + image inline (CID)
+	var relBody bytes.Buffer
+	rel := multipart.NewWriter(&relBody)
+	relBoundary := rel.Boundary()
+
+	hHTML := textproto.MIMEHeader{}
+	hHTML.Set("Content-Type", "text/html; charset=UTF-8")
+	hHTML.Set("Content-Transfer-Encoding", "8bit")
+	wHTML, err := rel.CreatePart(hHTML)
+	if err != nil {
+		return nil, err
+	}
+	if _, err = wHTML.Write([]byte(normalizeCRLF(html))); err != nil {
+		return nil, err
+	}
+
+	hImg := textproto.MIMEHeader{}
+	hImg.Set("Content-Type", "image/png; name=\"qr-presence.png\"")
+	hImg.Set("Content-Transfer-Encoding", "base64")
+	hImg.Set("Content-ID", "<qr-presence@pinkstar>")
+	hImg.Set("Content-Disposition", "inline; filename=\"qr-presence.png\"")
+	wImg, err := rel.CreatePart(hImg)
+	if err != nil {
+		return nil, err
+	}
+	enc := base64.StdEncoding.EncodeToString(qrPNG)
+	for i := 0; i < len(enc); i += 76 {
+		end := i + 76
+		if end > len(enc) {
+			end = len(enc)
+		}
+		if _, err = wImg.Write([]byte(enc[i:end] + "\r\n")); err != nil {
+			return nil, err
+		}
+	}
+	if err = rel.Close(); err != nil {
+		return nil, err
+	}
+
+	// 2) multipart/alternative : texte brut + related (html + image)
+	var altBody bytes.Buffer
+	alt := multipart.NewWriter(&altBody)
+	altBoundary := alt.Boundary()
+
+	hPlain := textproto.MIMEHeader{}
+	hPlain.Set("Content-Type", "text/plain; charset=UTF-8")
+	hPlain.Set("Content-Transfer-Encoding", "8bit")
+	wPlain, err := alt.CreatePart(hPlain)
+	if err != nil {
+		return nil, err
+	}
+	if _, err = wPlain.Write([]byte(normalizeCRLF(plain))); err != nil {
+		return nil, err
+	}
+
+	hRel := textproto.MIMEHeader{}
+	hRel.Set("Content-Type", fmt.Sprintf("multipart/related; type=\"text/html\"; boundary=%s", relBoundary))
+	wRel, err := alt.CreatePart(hRel)
+	if err != nil {
+		return nil, err
+	}
+	if _, err = wRel.Write(relBody.Bytes()); err != nil {
+		return nil, err
+	}
+	if err = alt.Close(); err != nil {
+		return nil, err
+	}
+
+	var out bytes.Buffer
+	fmt.Fprintf(&out, "From: %s\r\n", from)
+	fmt.Fprintf(&out, "To: %s\r\n", to)
+	fmt.Fprintf(&out, "Subject: %s\r\n", encSub)
+	fmt.Fprintf(&out, "MIME-Version: 1.0\r\n")
+	fmt.Fprintf(&out, "Content-Type: multipart/alternative; boundary=%s\r\n\r\n", altBoundary)
+	if _, err = out.Write(altBody.Bytes()); err != nil {
+		return nil, err
+	}
+	return out.Bytes(), nil
 }
 
 // buildMultipartMessage construit un message multipart/alternative conforme (évite l’affichage HTML en brut).

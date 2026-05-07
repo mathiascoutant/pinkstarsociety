@@ -210,7 +210,12 @@ func paymentLabel(s string) string {
 }
 
 type checkoutBody struct {
-	Kind string `json:"kind" binding:"required"` // full | deposit | balance
+	Kind  string `json:"kind" binding:"required"` // full | deposit | balance
+	Guest *struct {
+		FirstName string `json:"firstName"`
+		LastName  string `json:"lastName"`
+		Email     string `json:"email"`
+	} `json:"guest,omitempty"`
 }
 
 func (h *Handlers) CreateCheckout(c *gin.Context) {
@@ -300,15 +305,33 @@ func (h *Handlers) CreateCheckout(c *gin.Context) {
 	if cl := optionalBearerClaims(c, h.Config.JWTSecret); cl != nil {
 		userIDHex = cl.UserID
 	}
-	sessURL, sessID, err := h.newStripeCheckoutSession(amount, title, success, cancelURL, token, payKind, userIDHex)
+	guestEmail := ""
+	guestFirst := ""
+	guestLast := ""
+	if userIDHex == "" && body.Guest != nil {
+		guestFirst = strings.TrimSpace(body.Guest.FirstName)
+		guestLast = strings.TrimSpace(body.Guest.LastName)
+		guestEmail = strings.TrimSpace(body.Guest.Email)
+	}
+	sessURL, sessID, err := h.newStripeCheckoutSession(amount, title, success, cancelURL, token, payKind, userIDHex, guestEmail)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "paiement indisponible"})
 		return
 	}
-	_, _ = h.DB.Collection("bookings").UpdateOne(ctx, bson.M{"_id": b.ID}, bson.M{"$set": bson.M{
+	update := bson.M{
 		"stripe_session_id": sessID,
 		"updated_at":        time.Now().UTC(),
-	}})
+	}
+	if guestFirst != "" {
+		update["guest_first_name"] = guestFirst
+	}
+	if guestLast != "" {
+		update["guest_last_name"] = guestLast
+	}
+	if guestEmail != "" {
+		update["customer_email"] = guestEmail
+	}
+	_, _ = h.DB.Collection("bookings").UpdateOne(ctx, bson.M{"_id": b.ID}, bson.M{"$set": update})
 	c.JSON(http.StatusOK, gin.H{"url": sessURL})
 }
 

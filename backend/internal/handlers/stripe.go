@@ -22,7 +22,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func (h *Handlers) newStripeCheckoutSession(amountCents int64, productTitle, successURL, cancelURL, bookingToken, payKind, userIDHex string) (url string, sessionID string, err error) {
+func (h *Handlers) newStripeCheckoutSession(amountCents int64, productTitle, successURL, cancelURL, bookingToken, payKind, userIDHex, guestEmail string) (url string, sessionID string, err error) {
 	stripe.Key = h.Config.StripeSecretKey
 	meta := map[string]string{
 		"booking_token": bookingToken,
@@ -49,6 +49,9 @@ func (h *Handlers) newStripeCheckoutSession(amountCents int64, productTitle, suc
 		SuccessURL: stripe.String(successURL),
 		CancelURL:  stripe.String(cancelURL),
 		Metadata:   meta,
+	}
+	if guestEmail != "" {
+		params.CustomerEmail = stripe.String(guestEmail)
 	}
 	sess, err := checkoutsession.New(params)
 	if err != nil {
@@ -136,7 +139,7 @@ func (h *Handlers) applyPaidCheckoutSession(ctx context.Context, sess *stripe.Ch
 	if customerEmail != "" {
 		set["customer_email"] = customerEmail
 	}
-	if !cid.IsZero() && (b.PaymentStatus == "deposit_paid" || b.PaymentStatus == "paid") && b.VisitStatus == "" {
+	if (b.PaymentStatus == "deposit_paid" || b.PaymentStatus == "paid") && b.VisitStatus == "" {
 		set["visit_status"] = models.VisitPendingValidation
 	}
 
@@ -169,9 +172,9 @@ func (h *Handlers) applyPaidCheckoutSession(ctx context.Context, sess *stripe.Ch
 	if res.MatchedCount == 0 {
 		return nil
 	}
-	to := customerEmail
+	to := strings.TrimSpace(customerEmail)
 	if to == "" {
-		to = b.CustomerEmail
+		to = strings.TrimSpace(b.CustomerEmail)
 	}
 	cfg := h.Config
 	amount := sess.AmountTotal
@@ -190,6 +193,9 @@ func (h *Handlers) applyPaidCheckoutSession(ctx context.Context, sess *stripe.Ch
 			customerName = strings.TrimSpace(strings.TrimSpace(u.FirstName) + " " + strings.TrimSpace(u.LastName))
 		}
 		cancelU()
+	}
+	if customerName == "" {
+		customerName = strings.TrimSpace(strings.TrimSpace(bookingSnap.GuestFirstName) + " " + strings.TrimSpace(bookingSnap.GuestLastName))
 	}
 	if gcal.Enabled(cfg) {
 		ctxG, cancelG := context.WithTimeout(context.Background(), 20*time.Second)

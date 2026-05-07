@@ -108,7 +108,7 @@ export default function AdminAvailabilityPage() {
       <div className="pointer-events-none absolute -left-32 top-1/4 h-[36rem] w-[36rem] rounded-full bg-pss-pink/15 blur-[180px]" />
 
       {/* Top bar */}
-      <div className="relative z-10 mx-auto flex max-w-[1400px] items-center justify-between px-5 py-5 md:px-10">
+      <div className="relative z-10 mx-auto flex max-w-[1200px] items-center justify-between px-4 py-4 sm:px-6 md:px-8">
         <Link to="/" className="flex items-center gap-3">
           <span className="grid h-9 w-9 place-items-center">
             <Star />
@@ -119,14 +119,14 @@ export default function AdminAvailabilityPage() {
         </Link>
         <Link
           to="/admin"
-          className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.22em] text-white/55 transition hover:text-pss-pink"
+          className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/15 px-4 text-[11px] uppercase tracking-[0.2em] text-white/70 transition hover:border-pss-pink/40 hover:text-pss-pink"
         >
           <ArrowLeft />
           Panel admin
         </Link>
       </div>
 
-      <div className="relative z-10 mx-auto w-full max-w-[1100px] px-5 pb-16 pt-2 md:px-10 md:pt-8">
+      <div className="relative z-10 mx-auto w-full max-w-[1100px] px-4 pb-16 pt-2 sm:px-6 md:px-8 md:pt-6">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -154,7 +154,7 @@ export default function AdminAvailabilityPage() {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1, duration: 0.6 }}
-          className="glass-card relative rounded-3xl p-5 sm:p-7 md:p-8"
+          className="relative rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6 md:p-7"
         >
           <MonthHeader
             year={year}
@@ -179,8 +179,8 @@ export default function AdminAvailabilityPage() {
           {/* Sync info */}
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-pss-pink/20 bg-pss-pink/5 px-4 py-3 text-[12px] text-white/75">
             <div className="flex items-center gap-2">
-              <span className="grid h-5 w-5 place-items-center rounded-full bg-pss-pink/25 text-[11px] text-pss-pink">
-                ⟳
+              <span className="grid h-5 w-5 place-items-center rounded-full bg-pss-pink/25 text-pss-pink">
+                <RefreshIcon />
               </span>
               <span>
                 {syncCount === null ? (
@@ -221,7 +221,7 @@ export default function AdminAvailabilityPage() {
                   setTimeout(() => setFlash(null), 2400);
                 }
               }}
-              className="rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-white/75 transition hover:border-pss-pink/60 hover:text-pss-pink"
+              className="min-h-10 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-white/75 transition hover:border-pss-pink/60 hover:text-pss-pink"
             >
               Re-synchroniser
             </button>
@@ -263,7 +263,7 @@ export default function AdminAvailabilityPage() {
                 <button
                   type="button"
                   onClick={handleUnpublish}
-                  className="rounded-full border border-white/15 bg-white/[0.04] px-5 py-2.5 text-[12px] uppercase tracking-[0.18em] text-white/75 transition hover:border-white/25 hover:text-white"
+                  className="min-h-11 rounded-full border border-white/15 bg-white/[0.04] px-5 py-2.5 text-[12px] uppercase tracking-[0.18em] text-white/75 transition hover:border-white/25 hover:text-white"
                 >
                   Dépublier
                 </button>
@@ -271,7 +271,7 @@ export default function AdminAvailabilityPage() {
                 <button
                   type="button"
                   onClick={handlePublish}
-                  className="btn-pink"
+                  className="btn-pink min-h-11"
                 >
                   Publier ce mois
                   <Arrow />
@@ -380,6 +380,20 @@ function Arrow() {
         d="M5 12h14M13 5l7 7-7 7"
         stroke="currentColor"
         strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5"
+        stroke="currentColor"
+        strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
       />

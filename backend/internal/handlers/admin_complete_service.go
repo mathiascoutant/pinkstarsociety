@@ -32,10 +32,6 @@ func (h *Handlers) AdminCompleteService(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "prestation introuvable"})
 		return
 	}
-	if b.ClientUserID.IsZero() {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Aucun client n'est associé à cette prestation"})
-		return
-	}
 	if b.VisitStatus != models.VisitInProgress {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Valide d'abord la présence du client (scan du QR)."})
 		return
@@ -84,6 +80,18 @@ func (h *Handlers) AdminCompleteService(c *gin.Context) {
 	}
 	if res.ModifiedCount == 0 {
 		c.JSON(http.StatusConflict, gin.H{"error": "Impossible de clôturer — recharge la page et réessaie."})
+		return
+	}
+
+	// Pas de fidélité en mode invité : on clôture sans toucher aux users.
+	if b.ClientUserID.IsZero() {
+		c.JSON(http.StatusOK, gin.H{
+			"ok":          true,
+			"visitStatus": models.VisitCompleted,
+			"pointsAdded": 0,
+			"totalPoints": 0,
+			"guest":       true,
+		})
 		return
 	}
 
