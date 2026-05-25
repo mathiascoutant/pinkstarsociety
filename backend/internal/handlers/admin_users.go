@@ -16,9 +16,57 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+type userBookingStats struct {
+	TotalCompleted  int
+	LastServiceName string
+}
+
+func (h *Handlers) userBookingStatsByClientID(ctx context.Context) (map[primitive.ObjectID]userBookingStats, error) {
+	cur, err := h.DB.Collection("bookings").Aggregate(ctx, mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{
+			"visit_points_awarded": true,
+			"client_user_id":       bson.M{"$exists": true, "$ne": primitive.NilObjectID},
+		}}},
+		{{Key: "$sort", Value: bson.D{{Key: "updated_at", Value: -1}}}},
+		{{Key: "$group", Value: bson.M{
+			"_id":             "$client_user_id",
+			"totalCompleted":  bson.M{"$sum": 1},
+			"lastServiceName": bson.M{"$first": "$service_type_name"},
+		}}},
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+
+	out := make(map[primitive.ObjectID]userBookingStats)
+	for cur.Next(ctx) {
+		var row struct {
+			ID              primitive.ObjectID `bson:"_id"`
+			TotalCompleted  int                `bson:"totalCompleted"`
+			LastServiceName string             `bson:"lastServiceName"`
+		}
+		if cur.Decode(&row) != nil {
+			continue
+		}
+		out[row.ID] = userBookingStats{
+			TotalCompleted:  row.TotalCompleted,
+			LastServiceName: row.LastServiceName,
+		}
+	}
+	return out, cur.Err()
+}
+
 func (h *Handlers) AdminListUsers(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
+
+	statsByUser, err := h.userBookingStatsByClientID(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "statistiques fidélité impossibles"})
+		return
+	}
+
 	cur, err := h.DB.Collection("users").Find(ctx, bson.M{})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "liste impossible"})
@@ -31,13 +79,18 @@ func (h *Handlers) AdminListUsers(c *gin.Context) {
 		if cur.Decode(&u) != nil {
 			continue
 		}
+		stats := statsByUser[u.ID]
 		out = append(out, gin.H{
-			"id":        u.ID.Hex(),
-			"firstName": u.FirstName,
-			"lastName":  u.LastName,
-			"email":     u.Email,
-			"role":      u.Role,
-			"createdAt": u.CreatedAt,
+			"id":                     u.ID.Hex(),
+			"firstName":              u.FirstName,
+			"lastName":               u.LastName,
+			"email":                  u.Email,
+			"role":                   u.Role,
+			"createdAt":              u.CreatedAt,
+			"loyaltyPoints":          u.LoyaltyPoints,
+			"loyaltyProgressCount":   u.LoyaltyProgressCount,
+			"totalCompletedServices": stats.TotalCompleted,
+			"lastServiceName":        stats.LastServiceName,
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"users": out})

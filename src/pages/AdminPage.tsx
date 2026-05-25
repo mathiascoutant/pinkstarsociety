@@ -10,7 +10,68 @@ type AdminUser = {
   lastName: string;
   email: string;
   role: string;
+  loyaltyPoints?: number;
+  loyaltyProgressCount?: number;
+  totalCompletedServices?: number;
+  lastServiceName?: string;
+  createdAt?: string;
 };
+
+function formatUserCreatedAt(iso?: string) {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleDateString("fr-FR", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return "—";
+  }
+}
+
+function formatUserLoyaltyDisplay(u: AdminUser): {
+  serviceName: string | null;
+  totalLabel: string | null;
+  progressLabel: string | null;
+  pointsLabel: string | null;
+} {
+  const totalFromBookings = u.totalCompletedServices ?? 0;
+  const progress = u.loyaltyProgressCount ?? 0;
+  const points = u.loyaltyPoints ?? 0;
+
+  const hasLoyaltyActivity =
+    totalFromBookings > 0 || progress > 0 || points > 0;
+
+  if (!hasLoyaltyActivity) {
+    return {
+      serviceName: null,
+      totalLabel: null,
+      progressLabel: null,
+      pointsLabel: null,
+    };
+  }
+
+  const total =
+    totalFromBookings > 0
+      ? totalFromBookings
+      : progress > 0
+        ? progress
+        : 0;
+
+  const cycleProgress =
+    progress === 0 && total > 0 && total % 10 === 0 ? 10 : progress;
+
+  return {
+    serviceName: u.lastServiceName?.trim() || null,
+    totalLabel:
+      total > 0
+        ? `${total} prestation${total > 1 ? "s" : ""} au total`
+        : null,
+    progressLabel: `Fidélité ${cycleProgress}/10`,
+    pointsLabel: points > 0 ? `${points} pts` : null,
+  };
+}
 
 type ServiceType = { id: string; name: string };
 type LoyaltyCode = {
@@ -2051,17 +2112,21 @@ function UsersView({
 }) {
   return (
     <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/[0.02]">
-      <table className="w-full min-w-[480px] text-left text-sm">
+      <table className="w-full min-w-[760px] text-left text-sm">
         <thead className="bg-white/[0.02] text-xs uppercase tracking-[0.14em] text-white/45">
           <tr>
             <th className="px-4 py-3 font-normal">Nom</th>
             <th className="px-4 py-3 font-normal">Email</th>
             <th className="px-4 py-3 font-normal">Rôle</th>
+            <th className="px-4 py-3 font-normal">Création</th>
+            <th className="px-4 py-3 font-normal">Fidélité</th>
             <th className="px-4 py-3" />
           </tr>
         </thead>
         <tbody>
-          {users.map((u) => (
+          {users.map((u) => {
+            const loyalty = formatUserLoyaltyDisplay(u);
+            return (
             <tr
               key={u.id}
               className="border-t border-white/5 transition hover:bg-white/[0.02]"
@@ -2080,6 +2145,29 @@ function UsersView({
                 >
                   {u.role}
                 </span>
+              </td>
+              <td className="px-4 py-3 whitespace-nowrap text-white/60">
+                {formatUserCreatedAt(u.createdAt)}
+              </td>
+              <td className="px-4 py-3">
+                {loyalty.progressLabel ? (
+                  <div className="space-y-0.5">
+                    {loyalty.serviceName && (
+                      <p className="font-medium text-white">{loyalty.serviceName}</p>
+                    )}
+                    {loyalty.totalLabel && (
+                      <p className="text-xs text-white/50">{loyalty.totalLabel}</p>
+                    )}
+                    <p className="text-xs font-medium text-pss-pink">
+                      {loyalty.progressLabel}
+                    </p>
+                    {loyalty.pointsLabel && (
+                      <p className="text-xs text-white/40">{loyalty.pointsLabel}</p>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-white/30">—</span>
+                )}
               </td>
               <td className="px-4 py-3 text-right">
                 <button
@@ -2100,7 +2188,8 @@ function UsersView({
                 )}
               </td>
             </tr>
-          ))}
+          );
+          })}
         </tbody>
       </table>
     </div>
