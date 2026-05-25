@@ -137,12 +137,11 @@ func publicBookingResponse(b models.Booking) gin.H {
 	return out
 }
 
-// GetPublicAvailability renvoie les créneaux confirmés d'un mois (sans info
-// client). Permet au calendrier public de se mettre à jour automatiquement
-// dès qu'un acompte ou un paiement total est reçu, sans intervention admin.
+// GetPublicAvailability renvoie la grille publiée d'un mois avec les RDV
+// confirmés appliqués. 404 si le mois n'est pas publié.
 //
 // GET /api/public/availability/:year/:month
-// → { "year": 2025, "month": 5, "slots": [ { "date": "2025-05-04", "time": "14:00" } ] }
+// → { "year": 2025, "month": 5, "published": true, "days": [...] }
 func (h *Handlers) GetPublicAvailability(c *gin.Context) {
 	yearStr := c.Param("year")
 	monthStr := c.Param("month")
@@ -153,49 +152,27 @@ func (h *Handlers) GetPublicAvailability(c *gin.Context) {
 		return
 	}
 
-	from := fmt.Sprintf("%04d-%02d-01", year, month)
-	// Borne haute exclusive : 1er du mois suivant.
-	nextY, nextM := year, month+1
-	if nextM > 12 {
-		nextM = 1
-		nextY++
-	}
-	to := fmt.Sprintf("%04d-%02d-01", nextY, nextM)
-
-	filter := bson.M{
-		"date":           bson.M{"$gte": from, "$lt": to},
-		"payment_status": bson.M{"$in": []string{"deposit_paid", "paid"}},
-	}
-
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
-	cur, err := h.DB.Collection("bookings").Find(ctx, filter)
+
+	doc, found, err := h.loadMonthAvailability(ctx, year, month)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "indisponible"})
 		return
 	}
-	defer cur.Close(ctx)
-
-	var bookings []models.Booking
-	if err := cur.All(ctx, &bookings); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "indisponible"})
+	if !found || !doc.Published {
+		c.JSON(http.StatusNotFound, gin.H{"error": "mois non publié"})
 		return
 	}
 
-	// On ne renvoie QUE date + time. Pas d'ID, pas de nom, pas de prix.
-	slots := make([]gin.H, 0, len(bookings))
-	for _, b := range bookings {
-		slots = append(slots, gin.H{
-			"date": b.Date,
-			"time": b.Time,
-		})
+	bookings, err := h.confirmedBookingsForMonth(ctx, year, month)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "indisponible"})
+		return
 	}
+	applyBookingsToMonth(&doc, bookings)
 
-	c.JSON(http.StatusOK, gin.H{
-		"year":  year,
-		"month": month,
-		"slots": slots,
-	})
+	c.JSON(http.StatusOK, monthAvailabilityJSON(doc))
 }
 
 func paymentLabel(s string) string {

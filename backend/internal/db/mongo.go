@@ -51,5 +51,11 @@ func Connect(ctx context.Context, cfg *config.Config) (*mongo.Database, error) {
 		Options: options.Index().SetUnique(true),
 	})
 
+	availabilityMonths := database.Collection("availability_months")
+	_, _ = availabilityMonths.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "year", Value: 1}, {Key: "month", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	})
+
 	return database, nil
 }

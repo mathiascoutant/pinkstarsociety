@@ -85,3 +85,18 @@ type Booking struct {
 	GuestQRToken string `json:"-" bson:"guest_qr_token,omitempty"`
 	GuestQRUsed  bool   `json:"-" bson:"guest_qr_used,omitempty"`
 }
+
+// SlotStatus: open | blocked
+type DayAvailability struct {
+	Day       int    `json:"day" bson:"day"`
+	Morning   string `json:"morning" bson:"morning"`
+	Afternoon string `json:"afternoon" bson:"afternoon"`
+}
+
+type MonthAvailability struct {
+	Year      int               `json:"year" bson:"year"`
+	Month     int               `json:"month" bson:"month"`
+	Published bool              `json:"published" bson:"published"`
+	Days      []DayAvailability `json:"days" bson:"days"`
+	UpdatedAt time.Time         `json:"updatedAt" bson:"updated_at"`
+}

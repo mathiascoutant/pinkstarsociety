@@ -5,54 +5,33 @@ import AvailabilityCalendar, {
   MonthHeader,
 } from "../components/AvailabilityCalendar";
 import {
-  bookingSlot,
-  getMonth,
+  defaultMonth,
+  fetchPublicMonth,
   type MonthAvailability,
 } from "../lib/availability";
-import { api } from "../lib/api";
-
-type PublicSlot = { date: string; time: string };
-type PublicAvailability = {
-  year: number;
-  month: number;
-  slots: PublicSlot[];
-};
 
 export default function AvailabilityPage() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [data, setData] = useState<MonthAvailability>(() =>
-    getMonth(now.getFullYear(), now.getMonth() + 1),
+    defaultMonth(now.getFullYear(), now.getMonth() + 1),
   );
+  const [loading, setLoading] = useState(true);
 
-  // Charge les blocages admin (localStorage) puis merge en live les RDV
-  // confirmés via l'endpoint public — ce qui rend la mise à jour automatique
-  // dès qu'un acompte ou paiement total est encaissé, sans action admin.
   useEffect(() => {
     let cancelled = false;
-    const local = getMonth(year, month);
-    setData(local);
+    setLoading(true);
+    setData(defaultMonth(year, month));
 
     (async () => {
       try {
-        const r = await api<PublicAvailability>(
-          `/public/availability/${year}/${month}`,
-        );
-        if (cancelled) return;
-        const out: MonthAvailability = JSON.parse(JSON.stringify(local));
-        const target = `${year}-${String(month).padStart(2, "0")}`;
-        for (const s of r.slots || []) {
-          if (!s.date?.startsWith(target)) continue;
-          const day = parseInt(s.date.split("-")[2], 10);
-          if (!Number.isFinite(day)) continue;
-          const slot = bookingSlot(s.time || "00:00");
-          const d = out.days.find((x) => x.day === day);
-          if (d) d[slot] = "blocked";
-        }
-        if (!cancelled) setData(out);
+        const monthData = await fetchPublicMonth(year, month);
+        if (!cancelled) setData(monthData);
       } catch {
-        // backend offline → on reste sur le local
+        if (!cancelled) setData(defaultMonth(year, month));
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
 
@@ -166,16 +145,18 @@ export default function AvailabilityPage() {
               <AvailabilityCalendar data={data} mode="public" />
             </div>
 
-            {!data.published && (
+            {(!data.published || loading) && (
               <div className="absolute inset-0 grid place-items-center rounded-2xl bg-black/40 backdrop-blur-[3px]">
                 <div className="max-w-xs px-6 text-center">
                   <div className="font-display text-3xl uppercase leading-tight text-white">
-                    Bientôt
+                    {loading ? "Chargement…" : "Bientôt"}
                   </div>
-                  <p className="mt-2 font-serif text-[15px] leading-relaxed text-white/70">
-                    Les disponibilités de ce mois ne sont pas encore publiées.
-                    Reviens plus tard ou écris en DM.
-                  </p>
+                  {!loading && (
+                    <p className="mt-2 font-serif text-[15px] leading-relaxed text-white/70">
+                      Les disponibilités de ce mois ne sont pas encore
+                      publiées. Reviens plus tard ou écris en DM.
+                    </p>
+                  )}
                 </div>
               </div>
             )}

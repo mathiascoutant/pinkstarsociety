@@ -5,12 +5,15 @@ import AvailabilityCalendar, {
   MonthHeader,
 } from "../components/AvailabilityCalendar";
 import {
-  getMonth,
-  publish,
-  toggleSlot,
-  unpublish,
-  setDayBoth,
+  defaultMonth,
+  fetchAdminMonth,
   mergeBookings,
+  migrateLegacyAvailabilityIfNeeded,
+  publishMonth,
+  saveAdminMonth,
+  setDayBothPure,
+  toggleSlotPure,
+  unpublishMonth,
   type BookingLite,
   type MonthAvailability,
 } from "../lib/availability";
@@ -21,37 +24,48 @@ export default function AdminAvailabilityPage() {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [data, setData] = useState<MonthAvailability>(() =>
-    getMonth(now.getFullYear(), now.getMonth() + 1),
+    defaultMonth(now.getFullYear(), now.getMonth() + 1),
   );
+  const [loading, setLoading] = useState(true);
   const [flash, setFlash] = useState<string | null>(null);
   const [syncCount, setSyncCount] = useState<number | null>(null);
 
-  // À chaque changement de mois : on charge le local puis on tente de
-  // synchroniser depuis les RDV confirmés (acompte ou totalité payés).
+  useEffect(() => {
+    void migrateLegacyAvailabilityIfNeeded();
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
-    setData(getMonth(year, month));
+    setLoading(true);
     setSyncCount(null);
+
     (async () => {
       try {
+        const monthData = await fetchAdminMonth(year, month);
+        if (cancelled) return;
+
         const r = await api<{ bookings: BookingLite[] }>("/admin/bookings");
         if (cancelled) return;
+
         const target = `${year}-${String(month).padStart(2, "0")}`;
         const monthBookings = (r.bookings || []).filter(
           (b) =>
             b.date?.startsWith(target) &&
-            (b.paymentStatus === "deposit_paid" ||
-              b.paymentStatus === "paid"),
+            (b.paymentStatus === "deposit_paid" || b.paymentStatus === "paid"),
         );
-        const merged = mergeBookings(year, month, monthBookings);
-        if (!cancelled) {
-          setData(merged);
-          setSyncCount(monthBookings.length);
-        }
+        const merged = mergeBookings(monthData, monthBookings);
+        setData(merged);
+        setSyncCount(monthBookings.length);
       } catch {
-        // backend hors ligne ou pas authentifié — on garde le local seulement
+        if (!cancelled) {
+          setData(defaultMonth(year, month));
+          setSyncCount(0);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
+
     return () => {
       cancelled = true;
     };
@@ -60,7 +74,8 @@ export default function AdminAvailabilityPage() {
   const stats = useMemo(() => {
     const total = data.days.length * 2;
     const open = data.days.reduce(
-      (n, d) => n + (d.morning === "open" ? 1 : 0) + (d.afternoon === "open" ? 1 : 0),
+      (n, d) =>
+        n + (d.morning === "open" ? 1 : 0) + (d.afternoon === "open" ? 1 : 0),
       0,
     );
     return { total, open, blocked: total - open };
@@ -79,26 +94,77 @@ export default function AdminAvailabilityPage() {
     } else setMonth((m) => m + 1);
   }
 
-  function handleToggle(day: number, slot: "morning" | "afternoon") {
-    setData(toggleSlot(year, month, day, slot));
+  async function persist(next: MonthAvailability) {
+    const saved = await saveAdminMonth(next);
+    setData(saved);
+    return saved;
   }
 
-  function handleToggleDay(day: number) {
+  async function handleToggle(day: number, slot: "morning" | "afternoon") {
+    try {
+      await persist(toggleSlotPure(data, day, slot));
+    } catch {
+      setFlash("Sauvegarde échouée");
+      setTimeout(() => setFlash(null), 2400);
+    }
+  }
+
+  async function handleToggleDay(day: number) {
     const d = data.days.find((x) => x.day === day);
     if (!d) return;
     const allOpen = d.morning === "open" && d.afternoon === "open";
-    setData(setDayBoth(year, month, day, allOpen ? "blocked" : "open"));
+    try {
+      await persist(setDayBothPure(data, day, allOpen ? "blocked" : "open"));
+    } catch {
+      setFlash("Sauvegarde échouée");
+      setTimeout(() => setFlash(null), 2400);
+    }
   }
 
-  function handlePublish() {
-    setData(publish(year, month));
-    setFlash(`✓ ${monthLabel(month)} ${year} publié`);
-    setTimeout(() => setFlash(null), 2400);
+  async function handlePublish() {
+    try {
+      const saved = await publishMonth(year, month);
+      setData(saved);
+      setFlash(`✓ ${monthLabel(month)} ${year} publié`);
+      setTimeout(() => setFlash(null), 2400);
+    } catch {
+      setFlash("Publication échouée");
+      setTimeout(() => setFlash(null), 2400);
+    }
   }
-  function handleUnpublish() {
-    setData(unpublish(year, month));
-    setFlash(`Mois remis en brouillon`);
-    setTimeout(() => setFlash(null), 2400);
+
+  async function handleUnpublish() {
+    try {
+      const saved = await unpublishMonth(year, month);
+      setData(saved);
+      setFlash("Mois remis en brouillon");
+      setTimeout(() => setFlash(null), 2400);
+    } catch {
+      setFlash("Dépublication échouée");
+      setTimeout(() => setFlash(null), 2400);
+    }
+  }
+
+  async function resyncBookings() {
+    try {
+      const monthData = await fetchAdminMonth(year, month);
+      const r = await api<{ bookings: BookingLite[] }>("/admin/bookings");
+      const target = `${year}-${String(month).padStart(2, "0")}`;
+      const monthBookings = (r.bookings || []).filter(
+        (b) =>
+          b.date?.startsWith(target) &&
+          (b.paymentStatus === "deposit_paid" || b.paymentStatus === "paid"),
+      );
+      const merged = mergeBookings(monthData, monthBookings);
+      const saved = await persist(merged);
+      setData(saved);
+      setSyncCount(monthBookings.length);
+      setFlash(`Sync ok — ${monthBookings.length} RDV pris en compte`);
+      setTimeout(() => setFlash(null), 2400);
+    } catch {
+      setFlash("Sync échouée");
+      setTimeout(() => setFlash(null), 2400);
+    }
   }
 
   return (
@@ -183,8 +249,8 @@ export default function AdminAvailabilityPage() {
                 <RefreshIcon />
               </span>
               <span>
-                {syncCount === null ? (
-                  <>Synchronisation des RDV en cours…</>
+                {loading || syncCount === null ? (
+                  <>Chargement et synchronisation des RDV…</>
                 ) : syncCount === 0 ? (
                   <>Aucun RDV confirmé sur ce mois.</>
                 ) : (
@@ -198,30 +264,9 @@ export default function AdminAvailabilityPage() {
             </div>
             <button
               type="button"
-              onClick={async () => {
-                try {
-                  const r = await api<{ bookings: BookingLite[] }>(
-                    "/admin/bookings",
-                  );
-                  const target = `${year}-${String(month).padStart(2, "0")}`;
-                  const monthBookings = (r.bookings || []).filter(
-                    (b) =>
-                      b.date?.startsWith(target) &&
-                      (b.paymentStatus === "deposit_paid" ||
-                        b.paymentStatus === "paid"),
-                  );
-                  setData(mergeBookings(year, month, monthBookings));
-                  setSyncCount(monthBookings.length);
-                  setFlash(
-                    `Sync ok — ${monthBookings.length} RDV pris en compte`,
-                  );
-                  setTimeout(() => setFlash(null), 2400);
-                } catch (e) {
-                  setFlash("Sync échouée");
-                  setTimeout(() => setFlash(null), 2400);
-                }
-              }}
-              className="min-h-10 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-white/75 transition hover:border-pss-pink/60 hover:text-pss-pink"
+              onClick={() => void resyncBookings()}
+              disabled={loading}
+              className="min-h-10 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-white/75 transition hover:border-pss-pink/60 hover:text-pss-pink disabled:opacity-50"
             >
               Re-synchroniser
             </button>
@@ -246,8 +291,8 @@ export default function AdminAvailabilityPage() {
             <AvailabilityCalendar
               data={data}
               mode="admin"
-              onToggle={handleToggle}
-              onToggleDay={handleToggleDay}
+              onToggle={(day, slot) => void handleToggle(day, slot)}
+              onToggleDay={(day) => void handleToggleDay(day)}
             />
           </div>
 
@@ -262,7 +307,7 @@ export default function AdminAvailabilityPage() {
               {data.published ? (
                 <button
                   type="button"
-                  onClick={handleUnpublish}
+                  onClick={() => void handleUnpublish()}
                   className="min-h-11 rounded-full border border-white/15 bg-white/[0.04] px-5 py-2.5 text-[12px] uppercase tracking-[0.18em] text-white/75 transition hover:border-white/25 hover:text-white"
                 >
                   Dépublier
@@ -270,7 +315,7 @@ export default function AdminAvailabilityPage() {
               ) : (
                 <button
                   type="button"
-                  onClick={handlePublish}
+                  onClick={() => void handlePublish()}
                   className="btn-pink min-h-11"
                 >
                   Publier ce mois

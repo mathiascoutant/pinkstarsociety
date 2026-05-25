@@ -87,6 +87,11 @@ func main() {
 	admin.POST("/bookings/:id/verify-arrival", h.AdminVerifyClientArrival)
 	admin.POST("/bookings/:id/complete-service", h.AdminCompleteService)
 
+	admin.GET("/availability/:year/:month", h.AdminGetAvailability)
+	admin.PUT("/availability/:year/:month", h.AdminPutAvailability)
+	admin.POST("/availability/:year/:month/publish", h.AdminPublishAvailability)
+	admin.POST("/availability/:year/:month/unpublish", h.AdminUnpublishAvailability)
+
 	pub := api.Group("/public")
 	pub.GET("/bookings/:token", h.GetPublicBooking)
 	pub.POST("/bookings/:token/checkout", h.CreateCheckout)
