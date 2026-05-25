@@ -276,14 +276,6 @@ export default function ReservationPage() {
             </p>
             <a
               className="block rounded-xl border border-white/15 px-4 py-3 text-center text-sm hover:border-pss-pink/50"
-              href={`/api/public/bookings/${token}/facture.pdf`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Télécharger la facture (PDF)
-            </a>
-            <a
-              className="block rounded-xl border border-white/15 px-4 py-3 text-center text-sm hover:border-pss-pink/50"
               href={`/api/public/bookings/${token}/agenda.ics`}
             >
               Ajouter à l’agenda (.ics)

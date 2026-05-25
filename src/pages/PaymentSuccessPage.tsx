@@ -53,14 +53,6 @@ export default function PaymentSuccessPage() {
               <div className="mt-8 space-y-3">
                 <a
                   className="block rounded-xl border border-white/15 px-4 py-3 text-sm hover:border-pss-pink/50"
-                  href={`/api/public/bookings/${token}/facture.pdf`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Télécharger la facture
-                </a>
-                <a
-                  className="block rounded-xl border border-white/15 px-4 py-3 text-sm hover:border-pss-pink/50"
                   href={`/api/public/bookings/${token}/agenda.ics`}
                 >
                   Télécharger le rendez-vous (agenda)
