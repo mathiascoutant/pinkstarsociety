@@ -80,6 +80,13 @@ func (h *Handlers) AdminListUsers(c *gin.Context) {
 			continue
 		}
 		stats := statsByUser[u.ID]
+		totalCompleted := u.TotalCompletedServices
+		if totalCompleted < stats.TotalCompleted {
+			totalCompleted = stats.TotalCompleted
+		}
+		if totalCompleted == 0 && u.LoyaltyProgressCount > 0 {
+			totalCompleted = u.LoyaltyProgressCount
+		}
 		out = append(out, gin.H{
 			"id":                     u.ID.Hex(),
 			"firstName":              u.FirstName,
@@ -89,7 +96,7 @@ func (h *Handlers) AdminListUsers(c *gin.Context) {
 			"createdAt":              u.CreatedAt,
 			"loyaltyPoints":          u.LoyaltyPoints,
 			"loyaltyProgressCount":   u.LoyaltyProgressCount,
-			"totalCompletedServices": stats.TotalCompleted,
+			"totalCompletedServices": totalCompleted,
 			"lastServiceName":        stats.LastServiceName,
 		})
 	}
@@ -97,11 +104,14 @@ func (h *Handlers) AdminListUsers(c *gin.Context) {
 }
 
 type patchUserBody struct {
-	FirstName *string `json:"firstName"`
-	LastName  *string `json:"lastName"`
-	Email     *string `json:"email"`
-	Role      *string `json:"role"`
-	Password  *string `json:"password"`
+	FirstName              *string `json:"firstName"`
+	LastName               *string `json:"lastName"`
+	Email                  *string `json:"email"`
+	Role                   *string `json:"role"`
+	Password               *string `json:"password"`
+	LoyaltyPoints          *int    `json:"loyaltyPoints"`
+	LoyaltyProgressCount   *int    `json:"loyaltyProgressCount"`
+	TotalCompletedServices *int    `json:"totalCompletedServices"`
 }
 
 func (h *Handlers) AdminPatchUser(c *gin.Context) {
@@ -145,6 +155,31 @@ func (h *Handlers) AdminPatchUser(c *gin.Context) {
 			return
 		}
 		set["password_hash"] = hash
+	}
+	if body.LoyaltyPoints != nil {
+		if *body.LoyaltyPoints < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "points fidélité invalides"})
+			return
+		}
+		set["loyalty_points"] = *body.LoyaltyPoints
+	}
+	if body.LoyaltyProgressCount != nil {
+		if *body.LoyaltyProgressCount < 0 || *body.LoyaltyProgressCount > 10 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "progression fidélité invalide (0 à 10)"})
+			return
+		}
+		progress := *body.LoyaltyProgressCount
+		if progress == 10 {
+			progress = 0
+		}
+		set["loyalty_progress_count"] = progress
+	}
+	if body.TotalCompletedServices != nil {
+		if *body.TotalCompletedServices < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "nombre de prestations invalide"})
+			return
+		}
+		set["total_completed_services"] = *body.TotalCompletedServices
 	}
 	if len(set) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "aucun champ à modifier"})

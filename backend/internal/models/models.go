@@ -26,8 +26,9 @@ type User struct {
 	PasswordHash         string             `json:"-" bson:"password_hash"`
 	Role                 string             `json:"role" bson:"role"`
 	QRToken              string             `json:"qrToken,omitempty" bson:"qr_token,omitempty"`
-	LoyaltyPoints        int                `json:"loyaltyPoints" bson:"loyalty_points"`
-	LoyaltyProgressCount int                `json:"loyaltyProgressCount" bson:"loyalty_progress_count"`
+	LoyaltyPoints            int `json:"loyaltyPoints" bson:"loyalty_points"`
+	LoyaltyProgressCount     int `json:"loyaltyProgressCount" bson:"loyalty_progress_count"`
+	TotalCompletedServices   int `json:"totalCompletedServices" bson:"total_completed_services"`
 	CreatedAt            time.Time          `json:"createdAt" bson:"created_at"`
 }
 

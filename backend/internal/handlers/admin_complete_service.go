@@ -118,6 +118,12 @@ func (h *Handlers) AdminCompleteService(c *gin.Context) {
 							10,
 						},
 					},
+					"total_completed_services": bson.M{
+						"$add": bson.A{
+							bson.M{"$ifNull": bson.A{"$total_completed_services", 0}},
+							1,
+						},
+					},
 				},
 			},
 		},

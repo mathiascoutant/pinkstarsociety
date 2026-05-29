@@ -17,6 +17,8 @@ type AdminUser = {
   createdAt?: string;
 };
 
+type EditUserState = AdminUser & { loyaltyCycleProgress: number };
+
 function formatUserCreatedAt(iso?: string) {
   if (!iso) return "—";
   try {
@@ -30,18 +32,32 @@ function formatUserCreatedAt(iso?: string) {
   }
 }
 
+function userEffectiveTotalCompleted(u: AdminUser): number {
+  const fromField = u.totalCompletedServices ?? 0;
+  const progress = u.loyaltyProgressCount ?? 0;
+  if (fromField > 0) return fromField;
+  if (progress > 0) return progress;
+  return 0;
+}
+
+function userLoyaltyCycleProgress(u: AdminUser): number {
+  const total = userEffectiveTotalCompleted(u);
+  const progress = u.loyaltyProgressCount ?? 0;
+  if (progress === 0 && total > 0 && total % 10 === 0) return 10;
+  return progress;
+}
+
 function formatUserLoyaltyDisplay(u: AdminUser): {
   serviceName: string | null;
   totalLabel: string | null;
   progressLabel: string | null;
   pointsLabel: string | null;
 } {
-  const totalFromBookings = u.totalCompletedServices ?? 0;
+  const total = userEffectiveTotalCompleted(u);
   const progress = u.loyaltyProgressCount ?? 0;
   const points = u.loyaltyPoints ?? 0;
 
-  const hasLoyaltyActivity =
-    totalFromBookings > 0 || progress > 0 || points > 0;
+  const hasLoyaltyActivity = total > 0 || progress > 0 || points > 0;
 
   if (!hasLoyaltyActivity) {
     return {
@@ -52,15 +68,7 @@ function formatUserLoyaltyDisplay(u: AdminUser): {
     };
   }
 
-  const total =
-    totalFromBookings > 0
-      ? totalFromBookings
-      : progress > 0
-        ? progress
-        : 0;
-
-  const cycleProgress =
-    progress === 0 && total > 0 && total % 10 === 0 ? 10 : progress;
+  const cycleProgress = userLoyaltyCycleProgress(u);
 
   return {
     serviceName: u.lastServiceName?.trim() || null,
@@ -384,7 +392,7 @@ export default function AdminPage() {
   const [bDesc, setBDesc] = useState("");
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);
 
-  const [editUser, setEditUser] = useState<AdminUser | null>(null);
+  const [editUser, setEditUser] = useState<EditUserState | null>(null);
   const [scanBookingId, setScanBookingId] = useState<string | null>(null);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
   const scanTargetRef = useRef<string | null>(null);
@@ -633,6 +641,9 @@ export default function AdminPage() {
         lastName: editUser.lastName,
         email: editUser.email,
         role: editUser.role,
+        loyaltyPoints: editUser.loyaltyPoints ?? 0,
+        loyaltyProgressCount: editUser.loyaltyCycleProgress,
+        totalCompletedServices: editUser.totalCompletedServices ?? 0,
       }),
     });
     setEditUser(null);
@@ -817,7 +828,13 @@ export default function AdminPage() {
             <UsersView
               users={users}
               currentUserId={user?.id || ""}
-              onEdit={(u) => setEditUser({ ...u })}
+              onEdit={(u) =>
+                setEditUser({
+                  ...u,
+                  totalCompletedServices: userEffectiveTotalCompleted(u),
+                  loyaltyCycleProgress: userLoyaltyCycleProgress(u),
+                })
+              }
               onDelete={deleteUser}
             />
           )}
@@ -1077,6 +1094,62 @@ export default function AdminPage() {
               <option value="client">client</option>
               <option value="admin">admin</option>
             </select>
+            <div className="border-t border-white/10 pt-3">
+              <p className="mb-3 text-xs uppercase tracking-[0.14em] text-white/45">
+                Fidélité
+              </p>
+              <div className="space-y-3">
+                <Field label="Points">
+                  <input
+                    type="number"
+                    min={0}
+                    value={editUser.loyaltyPoints ?? 0}
+                    onChange={(e) =>
+                      setEditUser({
+                        ...editUser,
+                        loyaltyPoints: Math.max(0, Number(e.target.value) || 0),
+                      })
+                    }
+                    className="input"
+                  />
+                </Field>
+                <Field label="Prestations totales">
+                  <input
+                    type="number"
+                    min={0}
+                    value={editUser.totalCompletedServices ?? 0}
+                    onChange={(e) =>
+                      setEditUser({
+                        ...editUser,
+                        totalCompletedServices: Math.max(
+                          0,
+                          Number(e.target.value) || 0,
+                        ),
+                      })
+                    }
+                    className="input"
+                  />
+                </Field>
+                <Field label="Progression sur 10">
+                  <input
+                    type="number"
+                    min={0}
+                    max={10}
+                    value={editUser.loyaltyCycleProgress}
+                    onChange={(e) =>
+                      setEditUser({
+                        ...editUser,
+                        loyaltyCycleProgress: Math.min(
+                          10,
+                          Math.max(0, Number(e.target.value) || 0),
+                        ),
+                      })
+                    }
+                    className="input"
+                  />
+                </Field>
+              </div>
+            </div>
           </div>
           <div className="mt-4 flex justify-end gap-2">
             <button
