@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"pinkstarsociety/internal/bookingtime"
 	"pinkstarsociety/internal/models"
 
 	"github.com/gin-gonic/gin"
@@ -167,14 +168,14 @@ func applyBookingsToMonth(m *models.MonthAvailability, bookings []models.Booking
 		if err != nil || day < 1 {
 			continue
 		}
-		slot := halfDay(b.Time)
 		for i := range m.Days {
 			if m.Days[i].Day != day {
 				continue
 			}
-			if slot == "morning" {
+			if bookingtime.OverlapsHalfDayWindow(b, "morning") {
 				m.Days[i].Morning = "blocked"
-			} else {
+			}
+			if bookingtime.OverlapsHalfDayWindow(b, "afternoon") {
 				m.Days[i].Afternoon = "blocked"
 			}
 			break

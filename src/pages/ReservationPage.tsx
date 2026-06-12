@@ -202,9 +202,9 @@ export default function ReservationPage() {
                   Désolé, ce créneau vient d'être réservé.
                 </h2>
                 <p className="mt-3 text-sm leading-relaxed text-white/70">
-                  Une autre personne a confirmé son rendez-vous sur la même
-                  demi-journée. Le paiement n'est plus possible pour cette
-                  offre.
+                  Une autre personne a confirmé son rendez-vous sur un créneau
+                  qui chevauche celui-ci. Le paiement n'est plus possible pour
+                  cette offre.
                 </p>
                 <p className="mt-3 text-sm leading-relaxed text-white/70">
                   Tu peux m'envoyer un message en DM Instagram pour qu'on te

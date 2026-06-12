@@ -124,17 +124,66 @@ export function setDayBothPure(
 export type BookingLite = {
   date: string;
   time: string;
+  endTime?: string;
   paymentStatus: string;
 };
+
+const AFTERNOON_START_MINUTES = 13 * 60;
+const DEFAULT_DURATION_MINUTES = 60;
 
 export function isConfirmedBooking(b: { paymentStatus: string }): boolean {
   return b.paymentStatus === "deposit_paid" || b.paymentStatus === "paid";
 }
 
-export function bookingSlot(time: string): SlotKey {
-  const [hStr] = time.split(":");
-  const h = parseInt(hStr, 10);
-  return Number.isFinite(h) && h < 13 ? "morning" : "afternoon";
+function parseHM(time: string): number | null {
+  const parts = time.trim().split(":");
+  if (parts.length < 2) return null;
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  return h * 60 + m;
+}
+
+function bookingRange(time: string, endTime?: string): { start: number; end: number } | null {
+  const start = parseHM(time);
+  if (start === null) return null;
+  let end: number;
+  if (endTime?.trim()) {
+    const parsedEnd = parseHM(endTime);
+    end = parsedEnd === null ? start + DEFAULT_DURATION_MINUTES : parsedEnd;
+  } else {
+    end = start + DEFAULT_DURATION_MINUTES;
+  }
+  if (end <= start) end = start + DEFAULT_DURATION_MINUTES;
+  return { start, end };
+}
+
+function intervalsOverlap(s1: number, e1: number, s2: number, e2: number): boolean {
+  return s1 < e2 && s2 < e1;
+}
+
+function overlapsHalfDayWindow(
+  time: string,
+  endTime: string | undefined,
+  slot: SlotKey,
+): boolean {
+  const range = bookingRange(time, endTime);
+  if (!range) return false;
+  if (slot === "morning") {
+    return intervalsOverlap(range.start, range.end, 0, AFTERNOON_START_MINUTES);
+  }
+  return intervalsOverlap(range.start, range.end, AFTERNOON_START_MINUTES, 24 * 60);
+}
+
+export function bookingsOverlap(
+  a: { date: string; time: string; endTime?: string },
+  b: { date: string; time: string; endTime?: string },
+): boolean {
+  if (a.date !== b.date) return false;
+  const r1 = bookingRange(a.time, a.endTime);
+  const r2 = bookingRange(b.time, b.endTime);
+  if (!r1 || !r2) return false;
+  return intervalsOverlap(r1.start, r1.end, r2.start, r2.end);
 }
 
 export function mergeBookings(
@@ -148,9 +197,11 @@ export function mergeBookings(
     if (!b.date?.startsWith(target)) continue;
     const day = parseInt(b.date.split("-")[2], 10);
     if (!Number.isFinite(day)) continue;
-    const slot = bookingSlot(b.time || "00:00");
     const d = out.days.find((x) => x.day === day);
-    if (d) d[slot] = "blocked";
+    if (!d) continue;
+    const time = b.time || "00:00";
+    if (overlapsHalfDayWindow(time, b.endTime, "morning")) d.morning = "blocked";
+    if (overlapsHalfDayWindow(time, b.endTime, "afternoon")) d.afternoon = "blocked";
   }
   return out;
 }

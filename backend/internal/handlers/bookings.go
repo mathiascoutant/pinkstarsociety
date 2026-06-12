@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strings"
 	"time"
 
+	"pinkstarsociety/internal/mail"
 	"pinkstarsociety/internal/middleware"
 	"pinkstarsociety/internal/models"
 
@@ -337,6 +339,78 @@ func (h *Handlers) AdminPatchBooking(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "réservation introuvable"})
 		return
 	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+type rescheduleBookingBody struct {
+	Date    string `json:"date" binding:"required"`
+	Time    string `json:"time" binding:"required"`
+	EndTime string `json:"endTime"`
+}
+
+func (h *Handlers) AdminRescheduleBooking(c *gin.Context) {
+	idHex := c.Param("id")
+	oid, err := primitive.ObjectIDFromHex(idHex)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id invalide"})
+		return
+	}
+	var body rescheduleBookingBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "données invalides"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+
+	// Charger le booking avant modification pour conserver l'ancienne date/heure
+	var existing models.Booking
+	if err := h.DB.Collection("bookings").FindOne(ctx, bson.M{"_id": oid}).Decode(&existing); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "réservation introuvable"})
+		return
+	}
+	oldDate := existing.Date
+	oldTime := existing.Time
+
+	set := bson.M{
+		"date":       strings.TrimSpace(body.Date),
+		"time":       strings.TrimSpace(body.Time),
+		"end_time":   strings.TrimSpace(body.EndTime),
+		"updated_at": time.Now().UTC(),
+	}
+	res, err := h.DB.Collection("bookings").UpdateOne(ctx, bson.M{"_id": oid}, bson.M{"$set": set})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "mise à jour impossible"})
+		return
+	}
+	if res.MatchedCount == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "réservation introuvable"})
+		return
+	}
+
+	// Envoyer l'e-mail de confirmation au client (best-effort)
+	existing.Date = strings.TrimSpace(body.Date)
+	existing.Time = strings.TrimSpace(body.Time)
+	existing.EndTime = strings.TrimSpace(body.EndTime)
+
+	go func() {
+		clientEmail := strings.TrimSpace(existing.CustomerEmail)
+		if clientEmail == "" && !existing.ClientUserID.IsZero() {
+			bgCtx, bgCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer bgCancel()
+			var u models.User
+			if err := h.DB.Collection("users").FindOne(bgCtx, bson.M{"_id": existing.ClientUserID}).Decode(&u); err == nil {
+				clientEmail = strings.TrimSpace(u.Email)
+			}
+		}
+		if clientEmail == "" {
+			return
+		}
+		if err := mail.SendRescheduleNotification(h.Config, clientEmail, existing, oldDate, oldTime); err != nil {
+			log.Printf("reschedule mail error: %v", err)
+		}
+	}()
+
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 

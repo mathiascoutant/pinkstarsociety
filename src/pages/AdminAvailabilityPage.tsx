@@ -23,12 +23,18 @@ export default function AdminAvailabilityPage() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
-  const [data, setData] = useState<MonthAvailability>(() =>
+  const [baseData, setBaseData] = useState<MonthAvailability>(() =>
     defaultMonth(now.getFullYear(), now.getMonth() + 1),
   );
+  const [confirmedBookings, setConfirmedBookings] = useState<BookingLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [flash, setFlash] = useState<string | null>(null);
   const [syncCount, setSyncCount] = useState<number | null>(null);
+
+  const data = useMemo(
+    () => mergeBookings(baseData, confirmedBookings),
+    [baseData, confirmedBookings],
+  );
 
   useEffect(() => {
     void migrateLegacyAvailabilityIfNeeded();
@@ -53,12 +59,13 @@ export default function AdminAvailabilityPage() {
             b.date?.startsWith(target) &&
             (b.paymentStatus === "deposit_paid" || b.paymentStatus === "paid"),
         );
-        const merged = mergeBookings(monthData, monthBookings);
-        setData(merged);
+        setBaseData(monthData);
+        setConfirmedBookings(monthBookings);
         setSyncCount(monthBookings.length);
       } catch {
         if (!cancelled) {
-          setData(defaultMonth(year, month));
+          setBaseData(defaultMonth(year, month));
+          setConfirmedBookings([]);
           setSyncCount(0);
         }
       } finally {
@@ -94,15 +101,15 @@ export default function AdminAvailabilityPage() {
     } else setMonth((m) => m + 1);
   }
 
-  async function persist(next: MonthAvailability) {
+  async function persistBase(next: MonthAvailability) {
     const saved = await saveAdminMonth(next);
-    setData(saved);
+    setBaseData(saved);
     return saved;
   }
 
   async function handleToggle(day: number, slot: "morning" | "afternoon") {
     try {
-      await persist(toggleSlotPure(data, day, slot));
+      await persistBase(toggleSlotPure(baseData, day, slot));
     } catch {
       setFlash("Sauvegarde échouée");
       setTimeout(() => setFlash(null), 2400);
@@ -110,11 +117,11 @@ export default function AdminAvailabilityPage() {
   }
 
   async function handleToggleDay(day: number) {
-    const d = data.days.find((x) => x.day === day);
+    const d = baseData.days.find((x) => x.day === day);
     if (!d) return;
     const allOpen = d.morning === "open" && d.afternoon === "open";
     try {
-      await persist(setDayBothPure(data, day, allOpen ? "blocked" : "open"));
+      await persistBase(setDayBothPure(baseData, day, allOpen ? "blocked" : "open"));
     } catch {
       setFlash("Sauvegarde échouée");
       setTimeout(() => setFlash(null), 2400);
@@ -124,7 +131,7 @@ export default function AdminAvailabilityPage() {
   async function handlePublish() {
     try {
       const saved = await publishMonth(year, month);
-      setData(saved);
+      setBaseData(saved);
       setFlash(`✓ ${monthLabel(month)} ${year} publié`);
       setTimeout(() => setFlash(null), 2400);
     } catch {
@@ -136,7 +143,7 @@ export default function AdminAvailabilityPage() {
   async function handleUnpublish() {
     try {
       const saved = await unpublishMonth(year, month);
-      setData(saved);
+      setBaseData(saved);
       setFlash("Mois remis en brouillon");
       setTimeout(() => setFlash(null), 2400);
     } catch {
@@ -155,9 +162,8 @@ export default function AdminAvailabilityPage() {
           b.date?.startsWith(target) &&
           (b.paymentStatus === "deposit_paid" || b.paymentStatus === "paid"),
       );
-      const merged = mergeBookings(monthData, monthBookings);
-      const saved = await persist(merged);
-      setData(saved);
+      setBaseData(monthData);
+      setConfirmedBookings(monthBookings);
       setSyncCount(monthBookings.length);
       setFlash(`Sync ok — ${monthBookings.length} RDV pris en compte`);
       setTimeout(() => setFlash(null), 2400);

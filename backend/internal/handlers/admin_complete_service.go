@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strings"
 	"time"
 
+	"pinkstarsociety/internal/mail"
 	"pinkstarsociety/internal/models"
 
 	"github.com/gin-gonic/gin"
@@ -32,8 +34,12 @@ func (h *Handlers) AdminCompleteService(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "prestation introuvable"})
 		return
 	}
-	if b.VisitStatus != models.VisitInProgress {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Valide d'abord la présence du client (scan du QR)."})
+	if b.VisitStatus == models.VisitCompleted {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Cette prestation est déjà clôturée."})
+		return
+	}
+	if b.PaymentStatus != "deposit_paid" && b.PaymentStatus != "paid" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "En attente de paiement : l'acompte ou la totalité doit être encaissé."})
 		return
 	}
 	if b.VisitPointsAwarded {
@@ -69,7 +75,6 @@ func (h *Handlers) AdminCompleteService(c *gin.Context) {
 	res, err := h.DB.Collection("bookings").UpdateOne(ctx,
 		bson.M{
 			"_id":                  b.ID,
-			"visit_status":         models.VisitInProgress,
 			"visit_points_awarded": false,
 		},
 		bson.M{"$set": set},
@@ -85,6 +90,14 @@ func (h *Handlers) AdminCompleteService(c *gin.Context) {
 
 	// Pas de fidélité en mode invité : on clôture sans toucher aux users.
 	if b.ClientUserID.IsZero() {
+		if guestEmail := strings.TrimSpace(b.CustomerEmail); guestEmail != "" {
+			go func() {
+				firstName := strings.TrimSpace(b.GuestFirstName)
+				if err := mail.SendReviewRequest(h.Config, guestEmail, b, firstName); err != nil {
+					log.Printf("review mail (guest) error: %v", err)
+				}
+			}()
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"ok":          true,
 			"visitStatus": models.VisitCompleted,
@@ -135,6 +148,15 @@ func (h *Handlers) AdminCompleteService(c *gin.Context) {
 
 	var u2 models.User
 	_ = h.DB.Collection("users").FindOne(ctx, bson.M{"_id": b.ClientUserID}).Decode(&u2)
+
+	if clientEmail := strings.TrimSpace(u2.Email); clientEmail != "" {
+		go func() {
+			firstName := strings.TrimSpace(u2.FirstName)
+			if err := mail.SendReviewRequest(h.Config, clientEmail, b, firstName); err != nil {
+				log.Printf("review mail error: %v", err)
+			}
+		}()
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"ok":                   true,

@@ -1,7 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import QRCode from "react-qr-code";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
 import { useAuth } from "../context/AuthContext";
@@ -185,6 +184,16 @@ function EmptyState({ label }: { label: string }) {
   );
 }
 
+const loyaltyMilestones = [
+  { sessions: 3, reward: "–30%", label: "3e pose" },
+  { sessions: 5, reward: "–50%", label: "5e pose" },
+  { sessions: 10, reward: "Offert", label: "10e pose" },
+] as const;
+
+function nextMilestone(count: number) {
+  return loyaltyMilestones.find((m) => count < m.sessions) ?? null;
+}
+
 export default function AccountLoyaltyPage() {
   useLenis();
   const { user, refresh } = useAuth();
@@ -223,9 +232,6 @@ export default function AccountLoyaltyPage() {
     return { upcoming: up, past: pa };
   }, [bookings, t]);
 
-  const qrValue =
-    user?.qrToken != null && user.qrToken !== "" ? `PSS:${user.qrToken}` : "";
-
   const initials = user
     ? `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`.toUpperCase()
     : "?";
@@ -233,12 +239,8 @@ export default function AccountLoyaltyPage() {
   const points = user?.loyaltyPoints ?? 0;
   const completedSessions = user?.loyaltyProgressCount ?? 0;
   const progressPercent = Math.min((completedSessions / 10) * 100, 100);
-
-  const loyaltyMilestones = [
-    { sessions: 3, reward: "30%" },
-    { sessions: 5, reward: "50%" },
-    { sessions: 10, reward: "Offert" },
-  ] as const;
+  const next = nextMilestone(completedSessions);
+  const sessionsToNext = next ? next.sessions - completedSessions : 0;
 
   return (
     <div className="relative min-h-screen bg-[#050507] text-white">
@@ -249,6 +251,7 @@ export default function AccountLoyaltyPage() {
 
         <div className="relative z-10 mx-auto max-w-5xl px-5 pb-16 pt-28 md:px-8 md:pt-36">
           <motion.div variants={stagger} initial="hidden" animate="show">
+            {/* Breadcrumb */}
             <motion.div variants={fadeUp}>
               <p className="text-[11px] uppercase tracking-[0.32em] text-white/35">
                 <Link to="/" className="transition hover:text-pss-pink">
@@ -263,14 +266,15 @@ export default function AccountLoyaltyPage() {
               </p>
             </motion.div>
 
+            {/* Header */}
             <motion.div variants={fadeUp} className="mt-8">
               <div className="glass-card overflow-hidden rounded-2xl">
-                <div className="relative overflow-hidden px-6 py-8 md:px-10 md:py-10">
+                <div className="relative overflow-hidden px-6 py-7 md:px-10 md:py-8">
                   <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-pss-pink/8 via-transparent to-violet-500/5" />
                   <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-pss-pink/10 blur-[80px]" />
                   <div className="relative flex items-center gap-5 md:gap-6">
                     <div className="relative">
-                      <div className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-pss-pink/30 to-pss-hot/20 font-display text-2xl tracking-wider shadow-[0_0_40px_rgba(255,43,177,0.2)] ring-1 ring-white/10">
+                      <div className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-pss-pink/30 to-pss-hot/20 font-display text-xl tracking-wider shadow-[0_0_40px_rgba(255,43,177,0.2)] ring-1 ring-white/10">
                         {initials}
                       </div>
                       <div className="absolute -bottom-1 -right-1 grid h-5 w-5 place-items-center rounded-full bg-emerald-500 ring-2 ring-[#050507]">
@@ -284,8 +288,8 @@ export default function AccountLoyaltyPage() {
                         <span className="text-white">Programme </span>
                         <span className="chrome-pink">fidélité</span>
                       </h1>
-                      <p className="mt-1 text-sm text-white/40 md:text-[15px]">
-                        Tes points, ton QR et tes séances
+                      <p className="mt-1 text-sm text-white/40">
+                        Tes points et l'avancement de tes récompenses
                       </p>
                     </div>
                   </div>
@@ -294,156 +298,200 @@ export default function AccountLoyaltyPage() {
             </motion.div>
           </motion.div>
 
-          <div className="mt-8 grid gap-6 md:grid-cols-2">
+          {/* Stats grid */}
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {/* Points */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15, duration: 0.55, ease: easeOut }}
+              transition={{ delay: 0.12, duration: 0.55, ease: easeOut }}
+              className="glass-card relative overflow-hidden rounded-2xl px-6 py-6"
             >
-              <div className="glass-card overflow-hidden rounded-2xl">
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-pss-pink/40 to-transparent" />
-                <div className="flex items-center gap-3 border-b border-white/[0.06] px-6 py-5 md:px-8">
-                  <div className="grid h-8 w-8 place-items-center rounded-lg bg-pss-pink/10">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-pss-pink">
-                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" strokeLinejoin="round" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h2 className="font-display text-sm uppercase tracking-[0.1em]">
-                      Solde de points
-                    </h2>
-                    <p className="text-[11px] text-white/35">
-                       Crédités après chaque prestation
-                    </p>
-                  </div>
-                </div>
-
-                <div className="relative px-6 py-8 md:px-8 md:py-10">
-                  <div className="pointer-events-none absolute -right-6 top-1/2 -translate-y-1/2 opacity-[0.04]">
-                    <svg width="120" height="120" viewBox="0 0 24 24" fill="currentColor">
-                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                    </svg>
-                  </div>
-                  <p className="text-[10px] uppercase tracking-[0.24em] text-white/35">
-                    Points disponibles
-                  </p>
-                  <div className="mt-3 flex items-baseline gap-2">
-                    <span className="font-display text-6xl tabular-nums tracking-tight md:text-7xl">
-                      <span className="chrome-pink">{points}</span>
-                    </span>
-                    <span className="text-xl font-body font-normal text-white/35 md:text-2xl">
-                      pts
-                    </span>
-                  </div>
-                  <div className="mt-6 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
-                    <div className="mb-2 flex items-center justify-between text-[11px] uppercase tracking-[0.12em]">
-                      <span className="text-white/55">Progression fidélité</span>
-                      <span className="font-medium text-pss-pink">
-                        {completedSessions}/10 poses
-                      </span>
-                    </div>
-                    <div className="h-2.5 overflow-hidden rounded-full bg-white/[0.08]">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-pss-pink via-fuchsia-400 to-violet-400 transition-all duration-500"
-                        style={{ width: `${progressPercent}%` }}
-                      />
-                    </div>
-                    <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] leading-relaxed">
-                      {loyaltyMilestones.map((milestone) => {
-                        const reached = completedSessions >= milestone.sessions;
-                        return (
-                          <div
-                            key={milestone.sessions}
-                            className={`rounded-lg border px-2 py-2 text-center ${
-                              reached
-                                ? "border-pss-pink/35 bg-pss-pink/10 text-white"
-                                : "border-white/[0.08] bg-white/[0.02] text-white/45"
-                            }`}
-                          >
-                            <p className="font-medium">{milestone.sessions}e pose</p>
-                            <p className={reached ? "text-pss-pink" : "text-white/35"}>
-                              {milestone.reward}
-                            </p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <div className="mt-6 border-t border-white/[0.06] pt-4">
-                    <div className="flex items-start gap-2.5 text-[13px] leading-relaxed text-white/40">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="mt-0.5 shrink-0 text-white/25">
-                        <circle cx="12" cy="12" r="10" />
-                        <path d="M12 16v-4" strokeLinecap="round" />
-                        <path d="M12 8h.01" strokeLinecap="round" />
-                      </svg>
-                      Les points sont crédités après chaque prestation clôturée en salon lors du paiement depuis ton compte.
-                    </div>
-                  </div>
-                </div>
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-pss-pink/40 to-transparent" />
+              <div className="pointer-events-none absolute -right-4 -top-4 h-24 w-24 rounded-full bg-pss-pink/8 blur-[40px]" />
+              <p className="text-[10px] uppercase tracking-[0.24em] text-white/35">
+                Points disponibles
+              </p>
+              <div className="mt-3 flex items-baseline gap-1.5">
+                <span className="font-display text-5xl tabular-nums tracking-tight chrome-pink">
+                  {points}
+                </span>
+                <span className="pb-1 text-lg text-white/30">pts</span>
               </div>
+              <p className="mt-2 text-[11px] text-white/30">Crédités après chaque prestation</p>
             </motion.div>
 
+            {/* Séances */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.25, duration: 0.55, ease: easeOut }}
+              transition={{ delay: 0.2, duration: 0.55, ease: easeOut }}
+              className="glass-card relative overflow-hidden rounded-2xl px-6 py-6"
             >
-              <div className="glass-card h-full overflow-hidden rounded-2xl">
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-                <div className="flex items-center gap-3 border-b border-white/[0.06] px-6 py-5 md:px-8">
-                  <div className="grid h-8 w-8 place-items-center rounded-lg bg-violet-500/10">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-violet-400">
-                      <rect x="3" y="3" width="18" height="18" rx="2" />
-                      <path d="M7 7h4v4H7zM13 7h4v4h-4zM7 13h4v4H7zM13 13h4v4h-4z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h2 className="font-display text-sm uppercase tracking-[0.1em]">
-                      QR présence
-                    </h2>
-                    <p className="text-[11px] text-white/35">
-                      À présenter à l'arrivée
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-col items-center px-6 py-8 md:px-8 md:py-10">
-                  {qrValue ? (
-                    <>
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.5, ease: easeOut }}
-                        className="rounded-2xl bg-white p-5 shadow-[0_0_60px_rgba(255,43,177,0.15)] ring-1 ring-black/5"
-                      >
-                        <QRCode value={qrValue} size={180} />
-                      </motion.div>
-                      <p className="mt-5 text-center text-[12px] leading-relaxed text-white/35">
-                        Code unique lié à ton compte — scan en salon pour valider ta présence et accumuler des points.
-                      </p>
-                    </>
-                  ) : (
-                    <div className="flex flex-col items-center gap-3 py-6">
-                      <div className="grid h-14 w-14 place-items-center rounded-2xl bg-white/[0.03]">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/15">
-                          <rect x="3" y="3" width="18" height="18" rx="2" />
-                          <path d="M7 7h4v4H7zM13 7h4v4h-4zM7 13h4v4H7zM13 13h4v4h-4z" />
-                        </svg>
-                      </div>
-                      <p className="text-sm text-white/35">Chargement du QR…</p>
-                      <p className="text-xs text-white/25">Actualise la page si besoin.</p>
-                    </div>
-                  )}
-                </div>
+              <div className="pointer-events-none absolute -right-4 -top-4 h-24 w-24 rounded-full bg-violet-500/8 blur-[40px]" />
+              <p className="text-[10px] uppercase tracking-[0.24em] text-white/35">
+                Séances fidélité
+              </p>
+              <div className="mt-3 flex items-baseline gap-1.5">
+                <span className="font-display text-5xl tabular-nums tracking-tight text-white">
+                  {completedSessions}
+                </span>
+                <span className="pb-1 text-lg text-white/30">/ 10</span>
               </div>
+              <p className="mt-2 text-[11px] text-white/30">Depuis le début du programme</p>
+            </motion.div>
+
+            {/* Prochaine récompense */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.28, duration: 0.55, ease: easeOut }}
+              className={`glass-card relative overflow-hidden rounded-2xl px-6 py-6 ${next ? "ring-1 ring-pss-pink/15" : ""}`}
+            >
+              <div className="pointer-events-none absolute -right-4 -top-4 h-24 w-24 rounded-full bg-fuchsia-500/8 blur-[40px]" />
+              <p className="text-[10px] uppercase tracking-[0.24em] text-white/35">
+                Prochaine récompense
+              </p>
+              {next ? (
+                <>
+                  <div className="mt-3 flex items-baseline gap-1.5">
+                    <span className="font-display text-5xl tabular-nums tracking-tight chrome-pink">
+                      {next.reward}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-[11px] text-white/30">
+                    Dans{" "}
+                    <span className="font-medium text-white/55">
+                      {sessionsToNext} séance{sessionsToNext > 1 ? "s" : ""}
+                    </span>{" "}
+                    ({next.label})
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="mt-3">
+                    <span className="font-display text-2xl tracking-tight text-white/60">
+                      Tout débloqué
+                    </span>
+                  </div>
+                  <p className="mt-2 text-[11px] text-white/30">Toutes les récompenses atteintes</p>
+                </>
+              )}
             </motion.div>
           </div>
+
+          {/* Progression + jalons */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.34, duration: 0.55, ease: easeOut }}
+            className="mt-4"
+          >
+            <div className="glass-card overflow-hidden rounded-2xl">
+              <div className="flex items-center gap-3 border-b border-white/[0.06] px-6 py-5 md:px-8">
+                <div className="grid h-8 w-8 place-items-center rounded-lg bg-pss-pink/10">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-pss-pink">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="font-display text-sm uppercase tracking-[0.1em]">
+                    Progression
+                  </h2>
+                  <p className="text-[11px] text-white/35">
+                    Atteins les paliers pour débloquer tes récompenses
+                  </p>
+                </div>
+              </div>
+
+              <div className="px-6 py-7 md:px-8 md:py-8">
+                {/* Barre de progression */}
+                <div className="mb-2 flex items-center justify-between text-[11px] uppercase tracking-[0.12em]">
+                  <span className="text-white/45">Avancement</span>
+                  <span className="font-medium text-pss-pink">{completedSessions} / 10 poses</span>
+                </div>
+                <div className="relative h-3 overflow-hidden rounded-full bg-white/[0.06]">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progressPercent}%` }}
+                    transition={{ delay: 0.5, duration: 0.9, ease: [0.2, 0.8, 0.2, 1] }}
+                    className="h-full rounded-full bg-gradient-to-r from-pss-pink via-fuchsia-400 to-violet-400"
+                  />
+                  {/* Marqueurs jalons sur la barre */}
+                  {loyaltyMilestones.map((m) => (
+                    <div
+                      key={m.sessions}
+                      className="absolute top-0 h-full w-px bg-[#050507]/60"
+                      style={{ left: `${(m.sessions / 10) * 100}%` }}
+                    />
+                  ))}
+                </div>
+
+                {/* Jalons détaillés */}
+                <div className="mt-5 grid grid-cols-3 gap-3">
+                  {loyaltyMilestones.map((milestone) => {
+                    const reached = completedSessions >= milestone.sessions;
+                    const isNext = next?.sessions === milestone.sessions;
+                    return (
+                      <div
+                        key={milestone.sessions}
+                        className={`relative overflow-hidden rounded-xl border px-4 py-4 text-center transition-all ${
+                          reached
+                            ? "border-pss-pink/30 bg-pss-pink/8"
+                            : isNext
+                            ? "border-pss-pink/15 bg-white/[0.02] ring-1 ring-pss-pink/10"
+                            : "border-white/[0.06] bg-white/[0.015]"
+                        }`}
+                      >
+                        {reached && (
+                          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-pss-pink/50 to-transparent" />
+                        )}
+                        <div className={`mx-auto mb-2.5 grid h-8 w-8 place-items-center rounded-full ${reached ? "bg-pss-pink/20" : "bg-white/[0.05]"}`}>
+                          {reached ? (
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-pss-pink">
+                              <path d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : (
+                            <span className={`font-display text-xs ${isNext ? "text-white/60" : "text-white/25"}`}>
+                              {milestone.sessions}
+                            </span>
+                          )}
+                        </div>
+                        <p className={`text-[11px] font-medium uppercase tracking-[0.08em] ${reached ? "text-white" : isNext ? "text-white/55" : "text-white/30"}`}>
+                          {milestone.label}
+                        </p>
+                        <p className={`mt-0.5 font-display text-lg tracking-tight ${reached ? "chrome-pink" : isNext ? "text-white/45" : "text-white/20"}`}>
+                          {milestone.reward}
+                        </p>
+                        {isNext && !reached && (
+                          <p className="mt-1.5 text-[10px] text-pss-pink/70">
+                            encore {milestone.sessions - completedSessions}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-5 border-t border-white/[0.05] pt-4">
+                  <div className="flex items-start gap-2.5 text-[12px] leading-relaxed text-white/35">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="mt-0.5 shrink-0 text-white/20">
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M12 16v-4" strokeLinecap="round" />
+                      <path d="M12 8h.01" strokeLinecap="round" />
+                    </svg>
+                    Les points sont crédités après chaque prestation clôturée en salon lors du paiement depuis ton compte.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
 
           {err && (
             <motion.div
               initial={{ opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mt-6 flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/8 px-4 py-3 text-sm text-red-300"
+              className="mt-5 flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/8 px-4 py-3 text-sm text-red-300"
               role="alert"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -455,11 +503,12 @@ export default function AccountLoyaltyPage() {
             </motion.div>
           )}
 
+          {/* Séances */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.35, duration: 0.55, ease: easeOut }}
-            className="mt-8"
+            transition={{ delay: 0.45, duration: 0.55, ease: easeOut }}
+            className="mt-4"
           >
             <div className="glass-card overflow-hidden rounded-2xl">
               <div className="flex items-center gap-3 border-b border-white/[0.06] px-6 py-5 md:px-8">

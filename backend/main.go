@@ -84,6 +84,7 @@ func main() {
 	admin.POST("/bookings", h.AdminCreateBooking)
 	admin.PATCH("/bookings/:id", h.AdminPatchBooking)
 	admin.DELETE("/bookings/:id", h.AdminDeleteBooking)
+	admin.POST("/bookings/:id/reschedule", h.AdminRescheduleBooking)
 	admin.POST("/bookings/:id/verify-arrival", h.AdminVerifyClientArrival)
 	admin.POST("/bookings/:id/complete-service", h.AdminCompleteService)
 

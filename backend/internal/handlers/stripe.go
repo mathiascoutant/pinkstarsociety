@@ -14,7 +14,6 @@ import (
 	"pinkstarsociety/internal/models"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/stripe/stripe-go/v76"
 	checkoutsession "github.com/stripe/stripe-go/v76/checkout/session"
 	"github.com/stripe/stripe-go/v76/webhook"
@@ -143,13 +142,6 @@ func (h *Handlers) applyPaidCheckoutSession(ctx context.Context, sess *stripe.Ch
 		set["visit_status"] = models.VisitPendingValidation
 	}
 
-	// Mode INVITÉ : on génère un QR unique au 1er paiement et on le réutilise
-	// tel quel pour les paiements suivants (acompte → solde).
-	guestQR := strings.TrimSpace(b.GuestQRToken)
-	if cid.IsZero() && guestQR == "" {
-		guestQR = strings.ReplaceAll(uuid.New().String(), "-", "")
-		set["guest_qr_token"] = guestQR
-	}
 	// Un seul traitement par session Stripe (webhook + page merci en parallèle) : sinon double e-mail.
 	filter := bson.M{
 		"_id": b.ID,
@@ -222,14 +214,8 @@ func (h *Handlers) applyPaidCheckoutSession(ctx context.Context, sess *stripe.Ch
 			}
 		}
 	}
-	// Pour la copie envoyée au client, on prend le QR à jour : si on vient
-	// juste de le générer, il n'est pas encore dans `bookingSnap`.
-	emailQR := strings.TrimSpace(bookingSnap.GuestQRToken)
-	if emailQR == "" {
-		emailQR = guestQR
-	}
 	go func() {
-		if err := mail.SendPaymentRecap(cfg, to, bookingSnap, kind, amount, emailQR); err != nil {
+		if err := mail.SendPaymentRecap(cfg, to, bookingSnap, kind, amount); err != nil {
 			log.Println("email recap:", err)
 		}
 	}()

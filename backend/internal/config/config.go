@@ -34,6 +34,8 @@ type Config struct {
 	GoogleCalendarRefreshToken string
 	// GoogleCalendarID : ex. "primary" ou l’ID d’un calendrier secondaire
 	GoogleCalendarID string
+	// GoogleReviewURL : lien direct vers la fiche Google pour laisser un avis
+	GoogleReviewURL string
 }
 
 func loadEnvFiles() {
@@ -153,5 +155,6 @@ func Load() (*Config, error) {
 		GoogleCalendarClientSecret: strings.TrimSpace(os.Getenv("GOOGLE_CALENDAR_CLIENT_SECRET")),
 		GoogleCalendarRefreshToken: strings.TrimSpace(os.Getenv("GOOGLE_CALENDAR_REFRESH_TOKEN")),
 		GoogleCalendarID:           strings.TrimSpace(os.Getenv("GOOGLE_CALENDAR_ID")),
+		GoogleReviewURL:            strings.TrimSpace(os.Getenv("GOOGLE_REVIEW_URL")),
 	}, nil
 }

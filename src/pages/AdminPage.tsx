@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { QrScannerModal } from "../components/QrScannerModal";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { bookingsOverlap } from "../lib/availability";
 
 type AdminUser = {
   id: string;
@@ -146,7 +146,113 @@ type Section =
   | "services"
   | "loyalty"
   | "users"
-  | "stats";
+  | "stats"
+  | "revenue";
+
+const WEEKDAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+
+type RevenueAnalytics = {
+  monthLabel: string;
+  totalBookings: number;
+  totalRevenueCents: number;
+  collectedCents: number;
+  pendingCents: number;
+  depositOnlyCount: number;
+  pendingCount: number;
+  paidFullOnline: number;
+  paidFullCash: number;
+  paidFullBank: number;
+  byWeekday: { label: string; count: number; revenueCents: number }[];
+  byHour: { hour: string; count: number }[];
+  byService: { name: string; count: number; revenueCents: number }[];
+};
+
+function shiftMonth(year: number, month: number, delta: number) {
+  const d = new Date(year, month + delta, 1);
+  return { year: d.getFullYear(), month: d.getMonth() };
+}
+
+function computeRevenueAnalytics(
+  bookings: Booking[],
+  year: number,
+  month: number,
+): RevenueAnalytics {
+  const monthBookings = bookings.filter((b) => {
+    const d = new Date(b.date + "T00:00:00");
+    return d.getFullYear() === year && d.getMonth() === month;
+  });
+
+  let collectedCents = 0;
+  let pendingCents = 0;
+  let paidFullOnline = 0;
+  let paidFullCash = 0;
+  let paidFullBank = 0;
+  let depositOnlyCount = 0;
+  let pendingCount = 0;
+
+  const weekdayCounts = Array(7).fill(0);
+  const weekdayRevenue = Array(7).fill(0);
+  const hourCounts = new Map<string, number>();
+  const serviceMap = new Map<string, { count: number; revenueCents: number }>();
+
+  for (const b of monthBookings) {
+    if (b.paymentStatus === "paid") {
+      collectedCents += b.priceCents;
+      if (!b.balancePaidMethod) paidFullOnline++;
+      else if (b.balancePaidMethod === "cash") paidFullCash++;
+      else if (b.balancePaidMethod === "bank_transfer") paidFullBank++;
+    } else if (b.paymentStatus === "deposit_paid") {
+      collectedCents += b.depositCents;
+      pendingCents += b.priceCents - b.depositCents;
+      depositOnlyCount++;
+    } else {
+      pendingCents += b.priceCents;
+      pendingCount++;
+    }
+
+    const d = new Date(b.date + "T00:00:00");
+    const wd = (d.getDay() + 6) % 7;
+    weekdayCounts[wd]++;
+    weekdayRevenue[wd] += b.priceCents;
+
+    const hour = b.time.slice(0, 2);
+    hourCounts.set(hour, (hourCounts.get(hour) || 0) + 1);
+
+    const svc = serviceMap.get(b.serviceTypeName) || { count: 0, revenueCents: 0 };
+    svc.count++;
+    svc.revenueCents += b.priceCents;
+    serviceMap.set(b.serviceTypeName, svc);
+  }
+
+  const totalRevenueCents = monthBookings.reduce((s, b) => s + b.priceCents, 0);
+
+  return {
+    monthLabel: new Date(year, month, 1).toLocaleDateString("fr-FR", {
+      month: "long",
+      year: "numeric",
+    }),
+    totalBookings: monthBookings.length,
+    totalRevenueCents,
+    collectedCents,
+    pendingCents,
+    depositOnlyCount,
+    pendingCount,
+    paidFullOnline,
+    paidFullCash,
+    paidFullBank,
+    byWeekday: WEEKDAY_LABELS.map((label, i) => ({
+      label,
+      count: weekdayCounts[i],
+      revenueCents: weekdayRevenue[i],
+    })),
+    byHour: Array.from(hourCounts.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([hour, count]) => ({ hour, count })),
+    byService: Array.from(serviceMap.entries())
+      .map(([name, v]) => ({ name, ...v }))
+      .sort((a, b) => b.revenueCents - a.revenueCents),
+  };
+}
 
 function eurToCents(v: string): number {
   const n = parseFloat(v.replace(",", "."));
@@ -212,33 +318,10 @@ function formatLongDate(iso: string) {
   }
 }
 
-function canScanClientQR(b: Booking) {
-  return (
-    (b.paymentStatus === "deposit_paid" || b.paymentStatus === "paid") &&
-    b.visitStatus === "pending_validation"
-  );
-}
-
-function scanBlockedReason(b: Booking): string | null {
-  if (canScanClientQR(b)) return null;
-  if (b.paymentStatus !== "deposit_paid" && b.paymentStatus !== "paid") {
-    return "En attente de paiement : l’acompte ou la totalité doit être encaissé.";
-  }
-  if (b.visitStatus === "completed") {
-    return "Prestation terminée — points fidélité attribués.";
-  }
-  if (b.visitStatus === "in_progress") {
-    if (!b.visitPointsAwarded) {
-      return "Présence enregistrée. Utilise « Fin de prestation » pour créditer les points.";
-    }
-    return "Les points fidélité ont déjà été crédités.";
-  }
-  return "Scan indisponible.";
-}
-
 function canCompleteService(b: Booking) {
   return (
-    b.visitStatus === "in_progress" &&
+    (b.paymentStatus === "deposit_paid" || b.paymentStatus === "paid") &&
+    b.visitStatus !== "completed" &&
     b.visitPointsAwarded !== true
   );
 }
@@ -358,6 +441,10 @@ export default function AdminPage() {
   const { user, logout } = useAuth();
   const [section, setSection] = useState<Section>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [revenueMonth, setRevenueMonth] = useState(() => {
+    const d = new Date();
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
 
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [services, setServices] = useState<ServiceType[]>([]);
@@ -393,9 +480,7 @@ export default function AdminPage() {
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);
 
   const [editUser, setEditUser] = useState<EditUserState | null>(null);
-  const [scanBookingId, setScanBookingId] = useState<string | null>(null);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
-  const scanTargetRef = useRef<string | null>(null);
   const [detailBooking, setDetailBooking] = useState<Booking | null>(null);
   const [completeModalPhase, setCompleteModalPhase] = useState<
     null | "balance_payment" | "confirm"
@@ -404,6 +489,13 @@ export default function AdminPage() {
     "cash" | "bank_transfer" | null
   >(null);
   const [completeServiceBusy, setCompleteServiceBusy] = useState(false);
+
+  const [showReschedule, setShowReschedule] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState("");
+  const [rescheduleTime, setRescheduleTime] = useState("");
+  const [rescheduleEndTime, setRescheduleEndTime] = useState("");
+  const [rescheduleBusy, setRescheduleBusy] = useState(false);
+  const [rescheduleErr, setRescheduleErr] = useState<string | null>(null);
 
   const loadBookings = useCallback(async () => {
     const r = await api<{ bookings: Booking[] }>("/admin/bookings");
@@ -523,6 +615,19 @@ export default function AdminPage() {
       );
   }, [bookings, bookingFilter, bookingSearch, today]);
 
+  const rescheduleConflict = useMemo<Booking | null>(() => {
+    if (!detailBooking || !rescheduleDate || !rescheduleTime) return null;
+    const candidate = { date: rescheduleDate, time: rescheduleTime, endTime: rescheduleEndTime || undefined };
+    for (const b of bookings) {
+      if (b.id === detailBooking.id) continue;
+      if (b.paymentStatus !== "deposit_paid" && b.paymentStatus !== "paid") continue;
+      if (bookingsOverlap(candidate, { date: b.date, time: b.time, endTime: b.endTime })) {
+        return b;
+      }
+    }
+    return null;
+  }, [bookings, detailBooking, rescheduleDate, rescheduleTime, rescheduleEndTime]);
+
   // ====== Actions ======
   async function createBooking(e: React.FormEvent) {
     e.preventDefault();
@@ -557,6 +662,42 @@ export default function AdminPage() {
     if (!confirm("Supprimer cette réservation ?")) return;
     await api(`/admin/bookings/${id}`, { method: "DELETE" });
     void loadBookings();
+  }
+
+  function openReschedule(b: Booking) {
+    setRescheduleDate(b.date);
+    setRescheduleTime(b.time);
+    setRescheduleEndTime(b.endTime ?? "");
+    setRescheduleErr(null);
+    setShowReschedule(true);
+  }
+
+  async function submitReschedule() {
+    if (!detailBooking) return;
+    setRescheduleBusy(true);
+    setRescheduleErr(null);
+    try {
+      await api(`/admin/bookings/${detailBooking.id}/reschedule`, {
+        method: "POST",
+        body: JSON.stringify({
+          date: rescheduleDate,
+          time: rescheduleTime,
+          endTime: rescheduleEndTime,
+        }),
+      });
+      setShowReschedule(false);
+      setDetailBooking({
+        ...detailBooking,
+        date: rescheduleDate,
+        time: rescheduleTime,
+        endTime: rescheduleEndTime || undefined,
+      });
+      void loadBookings();
+    } catch (e) {
+      setRescheduleErr(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setRescheduleBusy(false);
+    }
   }
 
   async function addService(e: React.FormEvent) {
@@ -740,7 +881,9 @@ export default function AdminPage() {
               <Icon name="menu" />
             </button>
             <h1 className="truncate font-display text-base uppercase tracking-[0.14em] sm:text-lg">
-              {navItems.find((n) => n.key === section)?.label || "Admin"}
+              {section === "revenue"
+                ? "CA du mois"
+                : navItems.find((n) => n.key === section)?.label || "Admin"}
             </h1>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -772,7 +915,29 @@ export default function AdminPage() {
               setSelectedDate={setSelectedDate}
               dayBookings={dayBookings}
               onSelect={(b) => setDetailBooking(b)}
+              onRevenueClick={() => {
+                const d = new Date();
+                setRevenueMonth({ year: d.getFullYear(), month: d.getMonth() });
+                setSection("revenue");
+              }}
               today={today}
+            />
+          )}
+
+          {section === "revenue" && (
+            <RevenueDetailView
+              analytics={computeRevenueAnalytics(
+                bookings,
+                revenueMonth.year,
+                revenueMonth.month,
+              )}
+              onBack={() => setSection("dashboard")}
+              onPrevMonth={() =>
+                setRevenueMonth((m) => shiftMonth(m.year, m.month, -1))
+              }
+              onNextMonth={() =>
+                setRevenueMonth((m) => shiftMonth(m.year, m.month, 1))
+              }
             />
           )}
 
@@ -893,6 +1058,9 @@ export default function AdminPage() {
                 onChange={(e) => setBEndTime(e.target.value)}
                 className="input"
               />
+              <p className="mt-1 text-[11px] text-white/45">
+                Utilisée pour les conflits de créneaux (ex. 13h–15h puis 15h–17h).
+              </p>
             </Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Prix (€)">
@@ -1304,28 +1472,7 @@ export default function AdminPage() {
                 <p className="text-xs uppercase tracking-[0.18em] text-white/45">
                   Actions
                 </p>
-                {scanBlockedReason(detailBooking) && (
-                  <p className="mt-2 text-xs text-amber-200/90">
-                    {scanBlockedReason(detailBooking)}
-                  </p>
-                )}
                 <div className="mt-3 flex flex-col gap-2">
-                  {detailBooking.visitStatus !== "in_progress" &&
-                    detailBooking.visitStatus !== "completed" && (
-                      <button
-                        type="button"
-                        disabled={!canScanClientQR(detailBooking)}
-                        onClick={() => {
-                          if (!canScanClientQR(detailBooking)) return;
-                          setScanMessage(null);
-                          scanTargetRef.current = detailBooking.id;
-                          setScanBookingId(detailBooking.id);
-                        }}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-[#ffb6dd] via-pss-pink to-pss-hot px-4 py-2 text-sm font-medium text-white shadow-[0_0_24px_rgba(244,63,155,0.35)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
-                      >
-                        <Icon name="qr" className="h-4 w-4" /> Scanner le QR
-                      </button>
-                    )}
                   {canCompleteService(detailBooking) && (
                     <button
                       type="button"
@@ -1337,11 +1484,23 @@ export default function AdminPage() {
                           setCompleteModalPhase("balance_payment");
                         }
                       }}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-400/50 bg-emerald-500/15 px-4 py-2 text-sm font-medium text-emerald-200 transition hover:bg-emerald-500/25"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-[#ffb6dd] via-pss-pink to-pss-hot px-4 py-2 text-sm font-medium text-white shadow-[0_0_24px_rgba(244,63,155,0.35)] transition hover:brightness-110"
                     >
-                      <Icon name="check" className="h-4 w-4" /> Fin de prestation
+                      <Icon name="check" className="h-4 w-4" /> Terminé le RDV
                     </button>
                   )}
+                  {detailBooking.visitStatus === "completed" && (
+                    <p className="text-xs text-emerald-300/70">
+                      Prestation clôturée.
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => openReschedule(detailBooking)}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-sky-400/30 bg-sky-500/10 px-4 py-2 text-sm text-sky-300 transition hover:bg-sky-500/20"
+                  >
+                    <Icon name="calendar" className="h-4 w-4" /> Déplacer le RDV
+                  </button>
                   <button
                     type="button"
                     onClick={() => void deleteBooking(detailBooking.id)}
@@ -1354,6 +1513,103 @@ export default function AdminPage() {
             </div>
           </div>
         </Modal>
+      )}
+
+      {showReschedule && detailBooking && (
+        <div
+          className="fixed inset-0 z-[140] flex items-center justify-center bg-black/85 px-4"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#0c0c10] p-6 shadow-xl">
+            <h2 className="font-display text-lg uppercase tracking-[0.1em] text-white">
+              Déplacer le rendez-vous
+            </h2>
+            <p className="mt-2 text-xs text-white/50">
+              {detailBooking.serviceTypeName} — actuellement le{" "}
+              {detailBooking.date} à {detailBooking.time}
+            </p>
+            <div className="mt-5 space-y-4">
+              <div>
+                <label htmlFor="rs-date" className="block text-xs uppercase tracking-[0.15em] text-white/50">
+                  Nouvelle date
+                </label>
+                <input
+                  id="rs-date"
+                  type="date"
+                  value={rescheduleDate}
+                  onChange={(e) => setRescheduleDate(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white focus:border-pss-pink/50 focus:outline-none"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="rs-time" className="block text-xs uppercase tracking-[0.15em] text-white/50">
+                    Heure début
+                  </label>
+                  <input
+                    id="rs-time"
+                    type="time"
+                    value={rescheduleTime}
+                    onChange={(e) => setRescheduleTime(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white focus:border-pss-pink/50 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="rs-endtime" className="block text-xs uppercase tracking-[0.15em] text-white/50">
+                    Heure fin
+                  </label>
+                  <input
+                    id="rs-endtime"
+                    type="time"
+                    value={rescheduleEndTime}
+                    onChange={(e) => setRescheduleEndTime(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white focus:border-pss-pink/50 focus:outline-none"
+                  />
+                </div>
+              </div>
+              {rescheduleConflict && (
+                <div className="flex items-start gap-2 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2">
+                  <span className="mt-0.5 text-red-400">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+                      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2"/>
+                      <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                  </span>
+                  <p className="text-xs text-red-300">
+                    Créneau déjà pris —{" "}
+                    <strong className="text-red-200">
+                      {rescheduleConflict.serviceTypeName}
+                    </strong>{" "}
+                    le {rescheduleConflict.date} de {rescheduleConflict.time}
+                    {rescheduleConflict.endTime ? ` à ${rescheduleConflict.endTime}` : ""}
+                    {rescheduleConflict.clientName ? ` (${rescheduleConflict.clientName})` : ""}
+                  </p>
+                </div>
+              )}
+              {rescheduleErr && (
+                <p className="text-xs text-red-400">{rescheduleErr}</p>
+              )}
+            </div>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowReschedule(false)}
+                className="rounded-xl border border-white/15 px-4 py-2 text-sm text-white/75 hover:bg-white/5"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                disabled={rescheduleBusy || !rescheduleDate || !rescheduleTime || !!rescheduleConflict}
+                onClick={() => void submitReschedule()}
+                className="btn-pink disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {rescheduleBusy ? "…" : "Confirmer"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {completeModalPhase && detailBooking && (
@@ -1472,7 +1728,9 @@ export default function AdminPage() {
                           setCompleteModalPhase(null);
                           setCompleteBalanceMethod(null);
                           setScanMessage(
-                            `Prestation clôturée — +${r.pointsAdded} pts (solde : ${r.totalPoints}).`,
+                            r.pointsAdded > 0
+                              ? `RDV terminé — +${r.pointsAdded} pts (total : ${r.totalPoints}).`
+                              : "RDV terminé.",
                           );
                           void loadBookings();
                         } catch (e) {
@@ -1493,40 +1751,6 @@ export default function AdminPage() {
           </div>
         </div>
       )}
-
-      <QrScannerModal
-        open={scanBookingId !== null}
-        onClose={() => {
-          scanTargetRef.current = null;
-          setScanBookingId(null);
-        }}
-        onResult={(text) => {
-          const id = scanTargetRef.current;
-          scanTargetRef.current = null;
-          setScanBookingId(null);
-          if (!id) return;
-          void (async () => {
-            try {
-              const r = await api<{
-                clientName: string;
-                pointsPending: number;
-                totalPoints: number;
-              }>(`/admin/bookings/${id}/verify-arrival`, {
-                method: "POST",
-                body: JSON.stringify({ scanned: text }),
-              });
-              setScanMessage(
-                `Présence enregistrée — ${r.clientName}. ${r.pointsPending} pts crédités après « Fin de prestation ».`,
-              );
-              void loadBookings();
-            } catch (e) {
-              setScanMessage(
-                e instanceof Error ? e.message : "Erreur de vérification",
-              );
-            }
-          })();
-        }}
-      />
 
       {scanMessage && (
         <div className="fixed bottom-6 left-1/2 z-[160] max-w-md -translate-x-1/2 rounded-xl border border-white/15 bg-[#0c0c10] px-4 py-3 text-center text-sm text-white shadow-xl">
@@ -1608,20 +1832,25 @@ function StatCard({
   hint,
   icon,
   accent,
+  onClick,
 }: {
   label: string;
   value: string;
   hint?: string;
   icon: string;
   accent?: boolean;
+  onClick?: () => void;
 }) {
+  const Tag = onClick ? "button" : "div";
   return (
-    <div
-      className={`relative overflow-hidden rounded-2xl border bg-white/[0.02] p-4 md:p-5 ${
+    <Tag
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      className={`relative overflow-hidden rounded-2xl border bg-white/[0.02] p-4 text-left md:p-5 ${
         accent
           ? "border-pss-pink/40 shadow-[0_0_30px_rgba(244,63,155,0.15)]"
           : "border-white/10"
-      }`}
+      } ${onClick ? "cursor-pointer transition hover:border-pss-pink/50 hover:bg-white/[0.04]" : ""}`}
     >
       <div
         className={`absolute -right-4 -top-4 flex h-14 w-14 items-center justify-center rounded-full md:-right-6 md:-top-6 md:h-20 md:w-20 ${
@@ -1635,6 +1864,279 @@ function StatCard({
         {value}
       </p>
       {hint && <p className="mt-1 text-[10px] text-white/50 md:text-xs">{hint}</p>}
+    </Tag>
+  );
+}
+
+function BarRow({
+  label,
+  value,
+  max,
+  display,
+  color = "bg-pss-pink",
+}: {
+  label: string;
+  value: number;
+  max: number;
+  display: string;
+  color?: string;
+}) {
+  const pct = max > 0 ? (value / max) * 100 : 0;
+  return (
+    <div>
+      <div className="mb-1.5 flex justify-between gap-2 text-sm">
+        <span className="text-white/75">{label}</span>
+        <span className="font-medium text-white">{display}</span>
+      </div>
+      <div className="h-2 rounded-full bg-white/10">
+        <div
+          className={`h-full rounded-full transition-all ${color}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function RevenueDetailView({
+  analytics,
+  onBack,
+  onPrevMonth,
+  onNextMonth,
+}: {
+  analytics: RevenueAnalytics;
+  onBack: () => void;
+  onPrevMonth: () => void;
+  onNextMonth: () => void;
+}) {
+  const totalPaidFull =
+    analytics.paidFullOnline + analytics.paidFullCash + analytics.paidFullBank;
+  const pct = (n: number) =>
+    totalPaidFull > 0 ? Math.round((n / totalPaidFull) * 100) : 0;
+
+  const maxWeekdayCount = Math.max(...analytics.byWeekday.map((d) => d.count), 1);
+  const maxHourCount = Math.max(...analytics.byHour.map((d) => d.count), 1);
+  const busiestDay = analytics.byWeekday.reduce(
+    (best, d) => (d.count > best.count ? d : best),
+    analytics.byWeekday[0],
+  );
+
+  const collectionRate =
+    analytics.totalRevenueCents > 0
+      ? Math.round((analytics.collectedCents / analytics.totalRevenueCents) * 100)
+      : 0;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={onBack}
+          className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm text-white/70 transition hover:border-white/20 hover:text-white"
+        >
+          <Icon name="chevronLeft" className="h-4 w-4" />
+          Tableau de bord
+        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={onPrevMonth}
+            className="rounded-lg border border-white/10 p-2 text-white/70 transition hover:border-white/20 hover:text-white"
+          >
+            <Icon name="chevronLeft" className="h-4 w-4" />
+          </button>
+          <span className="min-w-[140px] text-center text-sm capitalize text-white">
+            {analytics.monthLabel}
+          </span>
+          <button
+            type="button"
+            onClick={onNextMonth}
+            className="rounded-lg border border-white/10 p-2 text-white/70 transition hover:border-white/20 hover:text-white"
+          >
+            <Icon name="chevronRight" className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+        <StatCard
+          label="CA total"
+          value={fmtEUR(analytics.totalRevenueCents)}
+          hint={`${analytics.totalBookings} rendez-vous`}
+          icon="euro"
+          accent
+        />
+        <StatCard
+          label="Encaissé"
+          value={fmtEUR(analytics.collectedCents)}
+          hint={`${collectionRate}% du CA`}
+          icon="check"
+        />
+        <StatCard
+          label="En attente"
+          value={fmtEUR(analytics.pendingCents)}
+          hint={`${analytics.pendingCount + analytics.depositOnlyCount} paiement(s)`}
+          icon="clock"
+        />
+        <StatCard
+          label="Jour le plus actif"
+          value={busiestDay.count > 0 ? busiestDay.label : "—"}
+          hint={
+            busiestDay.count > 0
+              ? `${busiestDay.count} rendez-vous`
+              : "aucune donnée"
+          }
+          icon="calendar"
+        />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+          <h2 className="font-display text-sm uppercase tracking-[0.14em] text-white">
+            Totalité payée — mode de règlement
+          </h2>
+          <p className="mt-1 text-xs text-white/50">
+            {totalPaidFull} prestation(s) entièrement payée(s) ce mois
+          </p>
+          {totalPaidFull === 0 ? (
+            <p className="mt-6 text-sm text-white/55">
+              Aucune prestation entièrement payée sur cette période.
+            </p>
+          ) : (
+            <div className="mt-5 space-y-4">
+              <BarRow
+                label="Sur le site (Stripe)"
+                value={analytics.paidFullOnline}
+                max={totalPaidFull}
+                display={`${analytics.paidFullOnline} · ${pct(analytics.paidFullOnline)}%`}
+                color="bg-pss-pink"
+              />
+              <BarRow
+                label="Espèces (solde)"
+                value={analytics.paidFullCash}
+                max={totalPaidFull}
+                display={`${analytics.paidFullCash} · ${pct(analytics.paidFullCash)}%`}
+                color="bg-amber-400"
+              />
+              <BarRow
+                label="Virement (solde)"
+                value={analytics.paidFullBank}
+                max={totalPaidFull}
+                display={`${analytics.paidFullBank} · ${pct(analytics.paidFullBank)}%`}
+                color="bg-sky-400"
+              />
+            </div>
+          )}
+          {(analytics.depositOnlyCount > 0 || analytics.pendingCount > 0) && (
+            <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-white/60">
+              {analytics.depositOnlyCount > 0 && (
+                <p>
+                  {analytics.depositOnlyCount} acompte(s) en ligne, solde restant à encaisser
+                </p>
+              )}
+              {analytics.pendingCount > 0 && (
+                <p className={analytics.depositOnlyCount > 0 ? "mt-1" : ""}>
+                  {analytics.pendingCount} réservation(s) sans paiement
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+          <h2 className="font-display text-sm uppercase tracking-[0.14em] text-white">
+            Activité par jour de la semaine
+          </h2>
+          <p className="mt-1 text-xs text-white/50">
+            Nombre de rendez-vous par jour
+          </p>
+          {analytics.totalBookings === 0 ? (
+            <p className="mt-6 text-sm text-white/55">Aucun rendez-vous ce mois.</p>
+          ) : (
+            <div className="mt-5 space-y-3">
+              {analytics.byWeekday.map((d) => (
+                <BarRow
+                  key={d.label}
+                  label={d.label}
+                  value={d.count}
+                  max={maxWeekdayCount}
+                  display={`${d.count} · ${fmtEUR(d.revenueCents)}`}
+                  color={
+                    d.count === busiestDay.count && d.count > 0
+                      ? "bg-pss-pink"
+                      : "bg-white/40"
+                  }
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+          <h2 className="font-display text-sm uppercase tracking-[0.14em] text-white">
+            Heures les plus demandées
+          </h2>
+          <p className="mt-1 text-xs text-white/50">
+            Créneaux horaires de début
+          </p>
+          {analytics.byHour.length === 0 ? (
+            <p className="mt-6 text-sm text-white/55">Aucune donnée.</p>
+          ) : (
+            <div className="mt-5 space-y-3">
+              {analytics.byHour.map((h) => (
+                <BarRow
+                  key={h.hour}
+                  label={`${h.hour}h`}
+                  value={h.count}
+                  max={maxHourCount}
+                  display={String(h.count)}
+                  color="bg-pss-pink/80"
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+          <h2 className="font-display text-sm uppercase tracking-[0.14em] text-white">
+            CA par prestation
+          </h2>
+          <p className="mt-1 text-xs text-white/50">
+            Classement par montant total
+          </p>
+          {analytics.byService.length === 0 ? (
+            <p className="mt-6 text-sm text-white/55">Aucune prestation.</p>
+          ) : (
+            <ul className="mt-5 space-y-3">
+              {analytics.byService.map((s, i) => (
+                <li
+                  key={s.name}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2.5"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm text-white">{s.name}</p>
+                    <p className="text-xs text-white/50">
+                      {s.count} prestation{s.count > 1 ? "s" : ""}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-display text-lg text-pss-pink">
+                      {fmtEUR(s.revenueCents)}
+                    </p>
+                    {i === 0 && analytics.byService.length > 1 && (
+                      <p className="text-[10px] uppercase tracking-[0.12em] text-white/40">
+                        Top
+                      </p>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1645,6 +2147,7 @@ function Dashboard({
   setSelectedDate,
   dayBookings,
   onSelect,
+  onRevenueClick,
   today,
 }: {
   stats: { todayCount: number; weekCount: number; monthRevenue: number; pendingCount: number };
@@ -1652,6 +2155,7 @@ function Dashboard({
   setSelectedDate: (s: string) => void;
   dayBookings: Booking[];
   onSelect: (b: Booking) => void;
+  onRevenueClick: () => void;
   today: string;
 }) {
   return (
@@ -1673,8 +2177,9 @@ function Dashboard({
         <StatCard
           label="CA du mois"
           value={fmtEUR(stats.monthRevenue)}
-          hint="encaissable"
+          hint="voir le détail"
           icon="euro"
+          onClick={onRevenueClick}
         />
         <StatCard
           label="En attente"
@@ -2183,88 +2688,197 @@ function UsersView({
   onEdit: (u: AdminUser) => void;
   onDelete: (id: string) => void;
 }) {
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter(
+      (u) =>
+        u.firstName.toLowerCase().includes(q) ||
+        u.lastName.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q),
+    );
+  }, [users, search]);
+
+  const RoleBadge = ({ role }: { role: string }) => (
+    <span
+      className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] ${
+        role === "admin"
+          ? "border-pss-pink/40 bg-pss-pink/10 text-pss-pink"
+          : "border-white/15 bg-white/5 text-white/70"
+      }`}
+    >
+      {role}
+    </span>
+  );
+
   return (
-    <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/[0.02]">
-      <table className="w-full min-w-[760px] text-left text-sm">
-        <thead className="bg-white/[0.02] text-xs uppercase tracking-[0.14em] text-white/45">
-          <tr>
-            <th className="px-4 py-3 font-normal">Nom</th>
-            <th className="px-4 py-3 font-normal">Email</th>
-            <th className="px-4 py-3 font-normal">Rôle</th>
-            <th className="px-4 py-3 font-normal">Création</th>
-            <th className="px-4 py-3 font-normal">Fidélité</th>
-            <th className="px-4 py-3" />
-          </tr>
-        </thead>
-        <tbody>
-          {users.map((u) => {
-            const loyalty = formatUserLoyaltyDisplay(u);
-            return (
-            <tr
+    <>
+      {/* Barre de recherche */}
+      <div className="relative mb-4">
+        <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
+          <Icon name="search" className="h-4 w-4 text-white/35" />
+        </div>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Rechercher par nom, prénom ou email…"
+          className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-2.5 pl-9 pr-4 text-sm text-white placeholder:text-white/30 focus:border-pss-pink/40 focus:outline-none focus:ring-1 focus:ring-pss-pink/20"
+        />
+        {search && (
+          <button
+            type="button"
+            onClick={() => setSearch("")}
+            className="absolute inset-y-0 right-3 flex items-center text-white/35 hover:text-white/70"
+          >
+            <Icon name="close" className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
+      {filtered.length === 0 && (
+        <p className="py-8 text-center text-sm text-white/40">
+          Aucun utilisateur trouvé pour «&nbsp;{search}&nbsp;».
+        </p>
+      )}
+
+      {/* Vue cartes — mobile uniquement */}
+      <div className="flex flex-col gap-3 md:hidden">
+        {filtered.map((u) => {
+          const loyalty = formatUserLoyaltyDisplay(u);
+          return (
+            <div
               key={u.id}
-              className="border-t border-white/5 transition hover:bg-white/[0.02]"
+              className="rounded-2xl border border-white/10 bg-white/[0.02] p-4"
             >
-              <td className="px-4 py-3 text-white">
-                {u.firstName} {u.lastName}
-              </td>
-              <td className="px-4 py-3 text-white/70">{u.email}</td>
-              <td className="px-4 py-3">
-                <span
-                  className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] ${
-                    u.role === "admin"
-                      ? "border-pss-pink/40 bg-pss-pink/10 text-pss-pink"
-                      : "border-white/15 bg-white/5 text-white/70"
-                  }`}
-                >
-                  {u.role}
-                </span>
-              </td>
-              <td className="px-4 py-3 whitespace-nowrap text-white/60">
-                {formatUserCreatedAt(u.createdAt)}
-              </td>
-              <td className="px-4 py-3">
-                {loyalty.progressLabel ? (
-                  <div className="space-y-0.5">
-                    {loyalty.serviceName && (
-                      <p className="font-medium text-white">{loyalty.serviceName}</p>
-                    )}
-                    {loyalty.totalLabel && (
-                      <p className="text-xs text-white/50">{loyalty.totalLabel}</p>
-                    )}
-                    <p className="text-xs font-medium text-pss-pink">
-                      {loyalty.progressLabel}
-                    </p>
-                    {loyalty.pointsLabel && (
-                      <p className="text-xs text-white/40">{loyalty.pointsLabel}</p>
-                    )}
-                  </div>
-                ) : (
-                  <span className="text-white/30">—</span>
-                )}
-              </td>
-              <td className="px-4 py-3 text-right">
-                <button
-                  type="button"
-                  className="rounded-lg p-2 text-white/60 hover:bg-white/5 hover:text-pss-pink"
-                  onClick={() => onEdit(u)}
-                >
-                  <Icon name="edit" className="h-4 w-4" />
-                </button>
-                {u.id !== currentUserId && (
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-white">
+                    {u.firstName} {u.lastName}
+                  </p>
+                  <p className="mt-0.5 truncate text-xs text-white/55">{u.email}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
                   <button
                     type="button"
-                    className="ml-1 rounded-lg p-2 text-white/60 hover:bg-red-500/10 hover:text-red-300"
-                    onClick={() => onDelete(u.id)}
+                    className="rounded-lg p-2 text-white/60 hover:bg-white/5 hover:text-pss-pink"
+                    onClick={() => onEdit(u)}
                   >
-                    <Icon name="trash" className="h-4 w-4" />
+                    <Icon name="edit" className="h-4 w-4" />
                   </button>
-                )}
-              </td>
-            </tr>
+                  {u.id !== currentUserId && (
+                    <button
+                      type="button"
+                      className="rounded-lg p-2 text-white/60 hover:bg-red-500/10 hover:text-red-300"
+                      onClick={() => onDelete(u.id)}
+                    >
+                      <Icon name="trash" className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-white/50">
+                <RoleBadge role={u.role} />
+                <span>{formatUserCreatedAt(u.createdAt)}</span>
+              </div>
+
+              {loyalty.progressLabel && (
+                <div className="mt-3 space-y-0.5 border-t border-white/5 pt-3">
+                  {loyalty.serviceName && (
+                    <p className="text-xs font-medium text-white">{loyalty.serviceName}</p>
+                  )}
+                  {loyalty.totalLabel && (
+                    <p className="text-xs text-white/50">{loyalty.totalLabel}</p>
+                  )}
+                  <p className="text-xs font-medium text-pss-pink">{loyalty.progressLabel}</p>
+                  {loyalty.pointsLabel && (
+                    <p className="text-xs text-white/40">{loyalty.pointsLabel}</p>
+                  )}
+                </div>
+              )}
+            </div>
           );
-          })}
-        </tbody>
-      </table>
-    </div>
+        })}
+      </div>
+
+      {/* Vue tableau — desktop uniquement */}
+      <div className="hidden overflow-x-auto rounded-2xl border border-white/10 bg-white/[0.02] md:block">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-white/[0.02] text-xs uppercase tracking-[0.14em] text-white/45">
+            <tr>
+              <th className="px-4 py-3 font-normal">Nom</th>
+              <th className="px-4 py-3 font-normal">Email</th>
+              <th className="px-4 py-3 font-normal">Rôle</th>
+              <th className="px-4 py-3 font-normal">Création</th>
+              <th className="px-4 py-3 font-normal">Fidélité</th>
+              <th className="px-4 py-3" />
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((u) => {
+              const loyalty = formatUserLoyaltyDisplay(u);
+              return (
+                <tr
+                  key={u.id}
+                  className="border-t border-white/5 transition hover:bg-white/[0.02]"
+                >
+                  <td className="px-4 py-3 text-white">
+                    {u.firstName} {u.lastName}
+                  </td>
+                  <td className="px-4 py-3 text-white/70">{u.email}</td>
+                  <td className="px-4 py-3">
+                    <RoleBadge role={u.role} />
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-white/60">
+                    {formatUserCreatedAt(u.createdAt)}
+                  </td>
+                  <td className="px-4 py-3">
+                    {loyalty.progressLabel ? (
+                      <div className="space-y-0.5">
+                        {loyalty.serviceName && (
+                          <p className="font-medium text-white">{loyalty.serviceName}</p>
+                        )}
+                        {loyalty.totalLabel && (
+                          <p className="text-xs text-white/50">{loyalty.totalLabel}</p>
+                        )}
+                        <p className="text-xs font-medium text-pss-pink">
+                          {loyalty.progressLabel}
+                        </p>
+                        {loyalty.pointsLabel && (
+                          <p className="text-xs text-white/40">{loyalty.pointsLabel}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-white/30">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      type="button"
+                      className="rounded-lg p-2 text-white/60 hover:bg-white/5 hover:text-pss-pink"
+                      onClick={() => onEdit(u)}
+                    >
+                      <Icon name="edit" className="h-4 w-4" />
+                    </button>
+                    {u.id !== currentUserId && (
+                      <button
+                        type="button"
+                        className="ml-1 rounded-lg p-2 text-white/60 hover:bg-red-500/10 hover:text-red-300"
+                        onClick={() => onDelete(u.id)}
+                      >
+                        <Icon name="trash" className="h-4 w-4" />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }

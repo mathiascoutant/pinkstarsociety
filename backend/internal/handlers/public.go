@@ -10,6 +10,7 @@ import (
 
 	qrcode "github.com/skip2/go-qrcode"
 
+	"pinkstarsociety/internal/bookingtime"
 	"pinkstarsociety/internal/models"
 	"pinkstarsociety/internal/pdf"
 
@@ -31,29 +32,11 @@ func (h *Handlers) GetPublicBooking(c *gin.Context) {
 		return
 	}
 
-	// Si cette offre est encore en attente et qu'un AUTRE booking sur la même
-	// demi-journée a déjà été payé (acompte ou total), l'offre n'est plus
-	// valable — premier arrivé, premier servi.
+	// Si cette offre est encore en attente et qu'un AUTRE RDV confirmé chevauche
+	// le créneau horaire, l'offre n'est plus valable — premier validé, premier servi.
 	slotTaken := false
 	if b.PaymentStatus == "pending" {
-		thisSlot := halfDay(b.Time)
-		cur, err := h.DB.Collection("bookings").Find(ctx, bson.M{
-			"date":           b.Date,
-			"_id":            bson.M{"$ne": b.ID},
-			"payment_status": bson.M{"$in": []string{"deposit_paid", "paid"}},
-		})
-		if err == nil {
-			defer cur.Close(ctx)
-			var others []models.Booking
-			if cur.All(ctx, &others) == nil {
-				for _, o := range others {
-					if halfDay(o.Time) == thisSlot {
-						slotTaken = true
-						break
-					}
-				}
-			}
-		}
+		slotTaken = h.hasConfirmedOverlap(ctx, b)
 	}
 
 	resp := publicBookingResponse(b)
@@ -98,15 +81,26 @@ func (h *Handlers) GetPublicBookingQR(c *gin.Context) {
 	c.Data(http.StatusOK, "image/png", png)
 }
 
-// halfDay : avant 13:00 → "morning", sinon "afternoon".
-func halfDay(time string) string {
-	if len(time) >= 2 {
-		h, err := strconv.Atoi(time[:2])
-		if err == nil && h < 13 {
-			return "morning"
+func (h *Handlers) hasConfirmedOverlap(ctx context.Context, b models.Booking) bool {
+	cur, err := h.DB.Collection("bookings").Find(ctx, bson.M{
+		"date":           b.Date,
+		"_id":            bson.M{"$ne": b.ID},
+		"payment_status": bson.M{"$in": []string{"deposit_paid", "paid"}},
+	})
+	if err != nil {
+		return false
+	}
+	defer cur.Close(ctx)
+	var others []models.Booking
+	if cur.All(ctx, &others) != nil {
+		return false
+	}
+	for _, o := range others {
+		if bookingtime.BookingsOverlap(b, o) {
+			return true
 		}
 	}
-	return "afternoon"
+	return false
 }
 
 func publicBookingResponse(b models.Booking) gin.H {
@@ -219,31 +213,13 @@ func (h *Handlers) CreateCheckout(c *gin.Context) {
 		return
 	}
 
-	// Premier arrivé, premier servi : si un autre RDV confirmé occupe déjà
-	// la même demi-journée et que ce booking-ci est encore en attente, on
-	// refuse le paiement.
-	if b.PaymentStatus == "pending" {
-		thisSlot := halfDay(b.Time)
-		cur, err := h.DB.Collection("bookings").Find(ctx, bson.M{
-			"date":           b.Date,
-			"_id":            bson.M{"$ne": b.ID},
-			"payment_status": bson.M{"$in": []string{"deposit_paid", "paid"}},
+	// Premier validé, premier servi : chevauchement horaire avec un RDV déjà confirmé.
+	if b.PaymentStatus == "pending" && h.hasConfirmedOverlap(ctx, b) {
+		c.JSON(http.StatusConflict, gin.H{
+			"error":     "Ce créneau vient d'être réservé par quelqu'un d'autre.",
+			"slotTaken": true,
 		})
-		if err == nil {
-			defer cur.Close(ctx)
-			var others []models.Booking
-			if cur.All(ctx, &others) == nil {
-				for _, o := range others {
-					if halfDay(o.Time) == thisSlot {
-						c.JSON(http.StatusConflict, gin.H{
-							"error":     "Ce créneau vient d'être réservé par quelqu'un d'autre.",
-							"slotTaken": true,
-						})
-						return
-					}
-				}
-			}
-		}
+		return
 	}
 
 	var amount int64
