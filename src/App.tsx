@@ -4,11 +4,17 @@ import { useAuth } from "./context/AuthContext";
 import AccountBookingDetailPage from "./pages/AccountBookingDetailPage";
 import AccountLoyaltyPage from "./pages/AccountLoyaltyPage";
 import AccountPage from "./pages/AccountPage";
-import AdminPage from "./pages/AdminPage";
+import AdminAvailabilityPage from "./pages/AdminAvailabilityPage";
+import AdminBookingsPage from "./pages/AdminBookingsPage";
+import AdminDashboardPage from "./pages/AdminDashboardPage";
+import AdminLoyaltyPage from "./pages/AdminLoyaltyPage";
+import AdminServicesPage from "./pages/AdminServicesPage";
+import AdminStatsPage from "./pages/AdminStatsPage";
+import AdminUsersPage from "./pages/AdminUsersPage";
+import AdminLayout from "./components/AdminLayout";
 import LoginPage from "./pages/LoginPage";
 import AboutPage from "./pages/AboutPage";
 import AvailabilityPage from "./pages/AvailabilityPage";
-import AdminAvailabilityPage from "./pages/AdminAvailabilityPage";
 import PaymentSuccessPage from "./pages/PaymentSuccessPage";
 import RegisterPage from "./pages/RegisterPage";
 import ReservationPage from "./pages/ReservationPage";
@@ -56,14 +62,25 @@ export default function App() {
       <Route path="/disponibilites" element={<AvailabilityPage />} />
       <Route path="/connexion" element={<LoginPage />} />
       <Route path="/inscription" element={<RegisterPage />} />
+
+      {/* Admin routes — partagent le layout sidebar */}
       <Route
         path="/admin"
         element={
           <AdminRoute>
-            <AdminPage />
+            <AdminLayout />
           </AdminRoute>
         }
-      />
+      >
+        <Route index element={<AdminDashboardPage />} />
+        <Route path="reservations" element={<AdminBookingsPage />} />
+        <Route path="statistiques" element={<AdminStatsPage />} />
+        <Route path="prestations" element={<AdminServicesPage />} />
+        <Route path="fidelite" element={<AdminLoyaltyPage />} />
+        <Route path="utilisateurs" element={<AdminUsersPage />} />
+      </Route>
+
+      {/* Disponibilités — layout propre différent */}
       <Route
         path="/admin/disponibilites"
         element={
@@ -72,6 +89,7 @@ export default function App() {
           </AdminRoute>
         }
       />
+
       <Route
         path="/compte"
         element={
