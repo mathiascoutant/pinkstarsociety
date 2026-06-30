@@ -39,3 +39,41 @@ func ParseToken(secret, tokenStr string) (*Claims, error) {
 	}
 	return claims, nil
 }
+
+const resetTokenPurpose = "password_reset"
+
+type ResetClaims struct {
+	UserID  string `json:"sub"`
+	Purpose string `json:"purpose"`
+	jwt.RegisteredClaims
+}
+
+func SignResetToken(secret, userID string) (string, error) {
+	claims := ResetClaims{
+		UserID:  userID,
+		Purpose: resetTokenPurpose,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	}
+	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return t.SignedString([]byte(secret))
+}
+
+func ParseResetToken(secret, tokenStr string) (*ResetClaims, error) {
+	t, err := jwt.ParseWithClaims(tokenStr, &ResetClaims{}, func(t *jwt.Token) (any, error) {
+		return []byte(secret), nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	claims, ok := t.Claims.(*ResetClaims)
+	if !ok || !t.Valid {
+		return nil, errors.New("token invalide")
+	}
+	if claims.Purpose != resetTokenPurpose {
+		return nil, errors.New("token invalide")
+	}
+	return claims, nil
+}

@@ -1,5 +1,7 @@
 // Shared types, utility functions, and UI components for admin pages
 
+import { bookingDurationMinutes } from "./availability";
+
 // ====== Types ======
 
 export type AdminUser = {
@@ -91,6 +93,16 @@ export type RevenueAnalytics = {
   byWeekday: { label: string; count: number; revenueCents: number }[];
   byHour: { hour: string; count: number }[];
   byService: { name: string; count: number; revenueCents: number }[];
+};
+
+export type HoursAnalytics = {
+  monthLabel: string;
+  totalBookings: number;
+  totalMinutes: number;
+  avgMinutesPerBooking: number;
+  byWeekday: { label: string; count: number; minutes: number }[];
+  byHour: { hour: string; count: number; minutes: number }[];
+  byService: { name: string; count: number; minutes: number }[];
 };
 
 // ====== Utility functions ======
@@ -231,6 +243,74 @@ export function computeRevenueAnalytics(
     byService: Array.from(serviceMap.entries())
       .map(([name, v]) => ({ name, ...v }))
       .sort((a, b) => b.revenueCents - a.revenueCents),
+  };
+}
+
+export function fmtHoursMinutes(totalMinutes: number) {
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  if (h === 0 && m === 0) return "0 h";
+  if (m === 0) return `${h} h`;
+  return `${h}h${String(m).padStart(2, "0")}`;
+}
+
+export function computeHoursAnalytics(
+  bookings: Booking[],
+  year: number,
+  month: number,
+): HoursAnalytics {
+  const monthBookings = bookings.filter((b) => {
+    const d = new Date(b.date + "T00:00:00");
+    return d.getFullYear() === year && d.getMonth() === month;
+  });
+
+  const weekdayCounts = Array(7).fill(0);
+  const weekdayMinutes = Array(7).fill(0);
+  const hourMap = new Map<string, { count: number; minutes: number }>();
+  const serviceMap = new Map<string, { count: number; minutes: number }>();
+  let totalMinutes = 0;
+
+  for (const b of monthBookings) {
+    const minutes = bookingDurationMinutes(b.time, b.endTime);
+    totalMinutes += minutes;
+
+    const d = new Date(b.date + "T00:00:00");
+    const wd = (d.getDay() + 6) % 7;
+    weekdayCounts[wd]++;
+    weekdayMinutes[wd] += minutes;
+
+    const hour = b.time.slice(0, 2);
+    const hourEntry = hourMap.get(hour) || { count: 0, minutes: 0 };
+    hourEntry.count++;
+    hourEntry.minutes += minutes;
+    hourMap.set(hour, hourEntry);
+
+    const svc = serviceMap.get(b.serviceTypeName) || { count: 0, minutes: 0 };
+    svc.count++;
+    svc.minutes += minutes;
+    serviceMap.set(b.serviceTypeName, svc);
+  }
+
+  return {
+    monthLabel: new Date(year, month, 1).toLocaleDateString("fr-FR", {
+      month: "long",
+      year: "numeric",
+    }),
+    totalBookings: monthBookings.length,
+    totalMinutes,
+    avgMinutesPerBooking:
+      monthBookings.length > 0 ? Math.round(totalMinutes / monthBookings.length) : 0,
+    byWeekday: WEEKDAY_LABELS.map((label, i) => ({
+      label,
+      count: weekdayCounts[i],
+      minutes: weekdayMinutes[i],
+    })),
+    byHour: Array.from(hourMap.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([hour, v]) => ({ hour, ...v })),
+    byService: Array.from(serviceMap.entries())
+      .map(([name, v]) => ({ name, ...v }))
+      .sort((a, b) => b.minutes - a.minutes),
   };
 }
 

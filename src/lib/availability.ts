@@ -158,6 +158,11 @@ function bookingRange(time: string, endTime?: string): { start: number; end: num
   return { start, end };
 }
 
+export function bookingDurationMinutes(time: string, endTime?: string): number {
+  const range = bookingRange(time, endTime);
+  return range ? range.end - range.start : DEFAULT_DURATION_MINUTES;
+}
+
 function intervalsOverlap(s1: number, e1: number, s2: number, e2: number): boolean {
   return s1 < e2 && s2 < e1;
 }

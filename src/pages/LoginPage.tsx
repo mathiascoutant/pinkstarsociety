@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
+import { api } from "../lib/api";
 import { safeInternalPath } from "../lib/routes";
 
 export default function LoginPage() {
@@ -21,6 +22,11 @@ export default function LoginPage() {
   const [showPwd, setShowPwd] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotErr, setForgotErr] = useState<string | null>(null);
+  const [forgotBusy, setForgotBusy] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,6 +44,37 @@ export default function LoginPage() {
       setErr(ex instanceof Error ? ex.message : "Erreur");
     } finally {
       setBusy(false);
+    }
+  }
+
+  function openForgot() {
+    setForgotEmail(email);
+    setForgotErr(null);
+    setForgotSent(false);
+    setForgotOpen(true);
+  }
+
+  function closeForgot() {
+    if (forgotBusy) return;
+    setForgotOpen(false);
+    setForgotErr(null);
+    setForgotSent(false);
+  }
+
+  async function onForgotSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setForgotErr(null);
+    setForgotBusy(true);
+    try {
+      await api("/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email: forgotEmail.trim() }),
+      });
+      setForgotSent(true);
+    } catch (ex) {
+      setForgotErr(ex instanceof Error ? ex.message : "Erreur");
+    } finally {
+      setForgotBusy(false);
     }
   }
 
@@ -179,6 +216,16 @@ export default function LoginPage() {
                 }
               />
 
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={openForgot}
+                  className="text-[12px] text-white/50 transition hover:text-pss-pink"
+                >
+                  Mot de passe oublié ?
+                </button>
+              </div>
+
               {err && (
                 <motion.div
                   initial={{ opacity: 0, y: -6 }}
@@ -233,6 +280,109 @@ export default function LoginPage() {
         </div>
 
       </main>
+
+      <AnimatePresence>
+        {forgotOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-5 backdrop-blur-sm"
+            onClick={closeForgot}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 12 }}
+              role="dialog"
+              aria-labelledby="forgot-title"
+              aria-modal="true"
+              className="w-full max-w-md rounded-2xl border border-white/12 bg-[#0c0c12] p-6 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mb-5 flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.28em] text-white/45">
+                    Récupération
+                  </p>
+                  <h2
+                    id="forgot-title"
+                    className="mt-2 font-display text-2xl uppercase tracking-[-0.02em] text-white"
+                  >
+                    Mot de passe oublié
+                  </h2>
+                  <p className="mt-2 text-sm leading-relaxed text-white/55">
+                    {forgotSent
+                      ? "Un email avec un lien de réinitialisation vient d'être envoyé. Pense à vérifier tes spams."
+                      : "Entre ton adresse email. Si un compte existe, tu recevras un lien pour modifier ton mot de passe."}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeForgot}
+                  disabled={forgotBusy}
+                  aria-label="Fermer"
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-white/45 transition hover:bg-white/10 hover:text-white disabled:opacity-40"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+
+              {forgotSent ? (
+                <button
+                  type="button"
+                  onClick={closeForgot}
+                  className="btn-pink w-full justify-center"
+                >
+                  Compris
+                </button>
+              ) : (
+                <form onSubmit={onForgotSubmit} className="space-y-4">
+                  <Field
+                    label="Email"
+                    type="email"
+                    required
+                    value={forgotEmail}
+                    onChange={setForgotEmail}
+                    placeholder="ton@email.com"
+                    autoComplete="email"
+                  />
+
+                  {forgotErr && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      role="alert"
+                      className="flex items-start gap-3 rounded-2xl border border-red-400/30 bg-red-400/[0.08] px-4 py-3 text-sm text-red-300"
+                    >
+                      <span className="mt-0.5">⚠</span>
+                      <span>{forgotErr}</span>
+                    </motion.div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={forgotBusy}
+                    className="btn-pink w-full justify-center disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {forgotBusy ? (
+                      <>
+                        <Spinner />
+                        Envoi…
+                      </>
+                    ) : (
+                      <>
+                        Envoyer le lien
+                        <ArrowRight />
+                      </>
+                    )}
+                  </button>
+                </form>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );
@@ -434,6 +584,19 @@ function ArrowLeft() {
         strokeWidth="2.4"
         strokeLinecap="round"
         strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M18 6L6 18M6 6l12 12"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
       />
     </svg>
   );

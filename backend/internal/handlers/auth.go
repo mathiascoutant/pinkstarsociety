@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"pinkstarsociety/internal/auth"
+	"pinkstarsociety/internal/mail"
 	"pinkstarsociety/internal/middleware"
 	"pinkstarsociety/internal/models"
 
@@ -29,6 +30,16 @@ type registerBody struct {
 type loginBody struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required"`
+}
+
+type forgotPasswordBody struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+type resetPasswordBody struct {
+	Token           string `json:"token" binding:"required"`
+	Password        string `json:"password" binding:"required,min=8"`
+	PasswordConfirm string `json:"passwordConfirm" binding:"required"`
 }
 
 func (h *Handlers) Register(c *gin.Context) {
@@ -137,6 +148,72 @@ func (h *Handlers) Login(c *gin.Context) {
 		"token": token,
 		"user":  userOut,
 	})
+}
+
+func (h *Handlers) ForgotPassword(c *gin.Context) {
+	var body forgotPasswordBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "données invalides"})
+		return
+	}
+	email := strings.ToLower(strings.TrimSpace(body.Email))
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+	var u models.User
+	err := h.DB.Collection("users").FindOne(ctx, bson.M{"email": email}).Decode(&u)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "aucun compte associé à cette adresse email"})
+		return
+	}
+	token, err := auth.SignResetToken(h.Config.JWTSecret, u.ID.Hex())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erreur serveur"})
+		return
+	}
+	if err := mail.SendPasswordReset(h.Config, u.Email, token); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "impossible d'envoyer l'email"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (h *Handlers) ResetPassword(c *gin.Context) {
+	var body resetPasswordBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "données invalides"})
+		return
+	}
+	if body.Password != body.PasswordConfirm {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "les mots de passe ne correspondent pas"})
+		return
+	}
+	claims, err := auth.ParseResetToken(h.Config.JWTSecret, strings.TrimSpace(body.Token))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "lien invalide ou expiré"})
+		return
+	}
+	oid, err := primitive.ObjectIDFromHex(claims.UserID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "lien invalide ou expiré"})
+		return
+	}
+	hash, err := auth.HashPassword(body.Password)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erreur serveur"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+	res, err := h.DB.Collection("users").UpdateOne(ctx, bson.M{"_id": oid}, bson.M{"$set": bson.M{"password_hash": hash}})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "mise à jour impossible"})
+		return
+	}
+	if res.MatchedCount == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "utilisateur introuvable"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
 func (h *Handlers) Me(c *gin.Context) {

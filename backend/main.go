@@ -55,6 +55,8 @@ func main() {
 
 	api.POST("/auth/register", h.Register)
 	api.POST("/auth/login", h.Login)
+	api.POST("/auth/forgot-password", h.ForgotPassword)
+	api.POST("/auth/reset-password", h.ResetPassword)
 
 	authz := api.Group("")
 	authz.Use(middleware.AuthRequired(cfg))

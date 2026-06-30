@@ -13,6 +13,7 @@ import AdminStatsPage from "./pages/AdminStatsPage";
 import AdminUsersPage from "./pages/AdminUsersPage";
 import AdminLayout from "./components/AdminLayout";
 import LoginPage from "./pages/LoginPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import AboutPage from "./pages/AboutPage";
 import AvailabilityPage from "./pages/AvailabilityPage";
 import PaymentSuccessPage from "./pages/PaymentSuccessPage";
@@ -61,6 +62,7 @@ export default function App() {
       <Route path="/a-propos" element={<AboutPage />} />
       <Route path="/disponibilites" element={<AvailabilityPage />} />
       <Route path="/connexion" element={<LoginPage />} />
+      <Route path="/reinitialiser-mot-de-passe" element={<ResetPasswordPage />} />
       <Route path="/inscription" element={<RegisterPage />} />
 
       {/* Admin routes — partagent le layout sidebar */}

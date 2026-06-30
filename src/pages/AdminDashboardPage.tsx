@@ -8,7 +8,9 @@ import {
   Icon,
   StatCard,
   computeRevenueAnalytics,
+  computeHoursAnalytics,
   fmtEUR,
+  fmtHoursMinutes,
   formatLongDate,
   shiftDate,
   shiftMonth,
@@ -16,6 +18,7 @@ import {
 } from "../lib/adminShared";
 
 type RevenueAnalytics = ReturnType<typeof computeRevenueAnalytics>;
+type HoursAnalytics = ReturnType<typeof computeHoursAnalytics>;
 
 export default function AdminDashboardPage() {
   const { openSidebar } = useOutletContext<{ openSidebar: () => void }>();
@@ -24,7 +27,12 @@ export default function AdminDashboardPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(todayISO());
   const [showRevenue, setShowRevenue] = useState(false);
+  const [showHours, setShowHours] = useState(false);
   const [revenueMonth, setRevenueMonth] = useState(() => {
+    const d = new Date();
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
+  const [hoursMonth, setHoursMonth] = useState(() => {
     const d = new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
   });
@@ -56,14 +64,25 @@ export default function AdminDashboardPage() {
       const d = new Date(b.date + "T00:00:00");
       return d >= weekStart && d < weekEnd;
     }).length;
-    const monthRevenue = bookings
-      .filter((b) => {
-        const d = new Date(b.date + "T00:00:00");
-        return d.getMonth() === start.getMonth() && d.getFullYear() === start.getFullYear();
-      })
-      .reduce((s, b) => s + b.priceCents, 0);
+    const monthBookings = bookings.filter((b) => {
+      const d = new Date(b.date + "T00:00:00");
+      return d.getMonth() === start.getMonth() && d.getFullYear() === start.getFullYear();
+    });
+    const monthHours = computeHoursAnalytics(
+      bookings,
+      start.getFullYear(),
+      start.getMonth(),
+    );
+    const monthRevenue = monthBookings.reduce((s, b) => s + b.priceCents, 0);
     const pendingCount = bookings.filter((b) => b.paymentStatus === "pending").length;
-    return { todayCount, weekCount, monthRevenue, pendingCount };
+    return {
+      todayCount,
+      weekCount,
+      monthRevenue,
+      monthMinutes: monthHours.totalMinutes,
+      monthBookingsCount: monthHours.totalBookings,
+      pendingCount,
+    };
   }, [bookings, today]);
 
   const dayBookings = useMemo(
@@ -79,6 +98,11 @@ export default function AdminDashboardPage() {
     [bookings, revenueMonth],
   );
 
+  const hoursAnalytics = useMemo(
+    () => computeHoursAnalytics(bookings, hoursMonth.year, hoursMonth.month),
+    [bookings, hoursMonth],
+  );
+
   if (showRevenue) {
     return (
       <RevenueDetailView
@@ -87,6 +111,18 @@ export default function AdminDashboardPage() {
         onBack={() => setShowRevenue(false)}
         onPrevMonth={() => setRevenueMonth((m) => shiftMonth(m.year, m.month, -1))}
         onNextMonth={() => setRevenueMonth((m) => shiftMonth(m.year, m.month, 1))}
+      />
+    );
+  }
+
+  if (showHours) {
+    return (
+      <HoursDetailView
+        openSidebar={openSidebar}
+        analytics={hoursAnalytics}
+        onBack={() => setShowHours(false)}
+        onPrevMonth={() => setHoursMonth((m) => shiftMonth(m.year, m.month, -1))}
+        onNextMonth={() => setHoursMonth((m) => shiftMonth(m.year, m.month, 1))}
       />
     );
   }
@@ -109,7 +145,7 @@ export default function AdminDashboardPage() {
       </header>
 
       <main className="px-3 py-6 sm:px-4 md:px-8 md:py-8 space-y-8">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5 md:gap-4">
           <StatCard
             label="Aujourd'hui"
             value={String(stats.todayCount)}
@@ -121,7 +157,7 @@ export default function AdminDashboardPage() {
             label="Cette semaine"
             value={String(stats.weekCount)}
             hint="rendez-vous"
-            icon="clock"
+            icon="chart"
           />
           <StatCard
             label="CA du mois"
@@ -132,6 +168,17 @@ export default function AdminDashboardPage() {
               const d = new Date();
               setRevenueMonth({ year: d.getFullYear(), month: d.getMonth() });
               setShowRevenue(true);
+            }}
+          />
+          <StatCard
+            label="Heures du mois"
+            value={fmtHoursMinutes(stats.monthMinutes)}
+            hint={`${stats.monthBookingsCount} rendez-vous · voir le détail`}
+            icon="clock"
+            onClick={() => {
+              const d = new Date();
+              setHoursMonth({ year: d.getFullYear(), month: d.getMonth() });
+              setShowHours(true);
             }}
           />
           <StatCard
@@ -463,6 +510,198 @@ function RevenueDetailView({
               </ul>
             )}
           </div>
+        </div>
+      </main>
+    </>
+  );
+}
+
+function HoursDetailView({
+  openSidebar,
+  analytics,
+  onBack,
+  onPrevMonth,
+  onNextMonth,
+}: {
+  openSidebar: () => void;
+  analytics: HoursAnalytics;
+  onBack: () => void;
+  onPrevMonth: () => void;
+  onNextMonth: () => void;
+}) {
+  const maxWeekdayMinutes = Math.max(...analytics.byWeekday.map((d) => d.minutes), 1);
+  const maxHourMinutes = Math.max(...analytics.byHour.map((d) => d.minutes), 1);
+  const busiestDay = analytics.byWeekday.reduce(
+    (best, d) => (d.minutes > best.minutes ? d : best),
+    analytics.byWeekday[0],
+  );
+
+  return (
+    <>
+      <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b border-white/10 bg-[#050507]/90 px-4 backdrop-blur md:px-8">
+        <div className="flex min-w-0 items-center gap-3">
+          <button
+            type="button"
+            onClick={openSidebar}
+            className="lg:hidden text-white/70 shrink-0"
+          >
+            <Icon name="menu" />
+          </button>
+          <h1 className="truncate font-display text-base uppercase tracking-[0.14em] sm:text-lg">
+            Heures du mois
+          </h1>
+        </div>
+      </header>
+
+      <main className="px-3 py-6 sm:px-4 md:px-8 md:py-8 space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm text-white/70 transition hover:border-white/20 hover:text-white"
+          >
+            <Icon name="chevronLeft" className="h-4 w-4" />
+            Tableau de bord
+          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={onPrevMonth}
+              className="rounded-lg border border-white/10 p-2 text-white/70 transition hover:border-white/20 hover:text-white"
+            >
+              <Icon name="chevronLeft" className="h-4 w-4" />
+            </button>
+            <span className="min-w-[140px] text-center text-sm capitalize text-white">
+              {analytics.monthLabel}
+            </span>
+            <button
+              type="button"
+              onClick={onNextMonth}
+              className="rounded-lg border border-white/10 p-2 text-white/70 transition hover:border-white/20 hover:text-white"
+            >
+              <Icon name="chevronRight" className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+          <StatCard
+            label="Total heures"
+            value={fmtHoursMinutes(analytics.totalMinutes)}
+            hint={`${analytics.totalBookings} rendez-vous`}
+            icon="clock"
+            accent
+          />
+          <StatCard
+            label="Moyenne / RDV"
+            value={fmtHoursMinutes(analytics.avgMinutesPerBooking)}
+            hint="durée moyenne"
+            icon="chart"
+          />
+          <StatCard
+            label="Jour le plus chargé"
+            value={busiestDay.minutes > 0 ? busiestDay.label : "—"}
+            hint={
+              busiestDay.minutes > 0
+                ? `${fmtHoursMinutes(busiestDay.minutes)} · ${busiestDay.count} RDV`
+                : "aucune donnée"
+            }
+            icon="calendar"
+          />
+          <StatCard
+            label="Prestations"
+            value={String(analytics.byService.length)}
+            hint="types différents"
+            icon="scissors"
+          />
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+            <h2 className="font-display text-sm uppercase tracking-[0.14em] text-white">
+              Heures par jour de la semaine
+            </h2>
+            <p className="mt-1 text-xs text-white/50">Temps total planifié par jour</p>
+            {analytics.totalBookings === 0 ? (
+              <p className="mt-6 text-sm text-white/55">Aucun rendez-vous ce mois.</p>
+            ) : (
+              <div className="mt-5 space-y-3">
+                {analytics.byWeekday.map((d) => (
+                  <BarRow
+                    key={d.label}
+                    label={d.label}
+                    value={d.minutes}
+                    max={maxWeekdayMinutes}
+                    display={`${fmtHoursMinutes(d.minutes)} · ${d.count} RDV`}
+                    color={
+                      d.minutes === busiestDay.minutes && d.minutes > 0
+                        ? "bg-pss-pink"
+                        : "bg-white/40"
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+            <h2 className="font-display text-sm uppercase tracking-[0.14em] text-white">
+              Heures par créneau de début
+            </h2>
+            <p className="mt-1 text-xs text-white/50">Temps total par heure de début</p>
+            {analytics.byHour.length === 0 ? (
+              <p className="mt-6 text-sm text-white/55">Aucune donnée.</p>
+            ) : (
+              <div className="mt-5 space-y-3">
+                {analytics.byHour.map((h) => (
+                  <BarRow
+                    key={h.hour}
+                    label={`${h.hour}h`}
+                    value={h.minutes}
+                    max={maxHourMinutes}
+                    display={`${fmtHoursMinutes(h.minutes)} · ${h.count}`}
+                    color="bg-pss-pink/80"
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+          <h2 className="font-display text-sm uppercase tracking-[0.14em] text-white">
+            Heures par prestation
+          </h2>
+          <p className="mt-1 text-xs text-white/50">Classement par temps total</p>
+          {analytics.byService.length === 0 ? (
+            <p className="mt-6 text-sm text-white/55">Aucune prestation.</p>
+          ) : (
+            <ul className="mt-5 space-y-3">
+              {analytics.byService.map((s, i) => (
+                <li
+                  key={s.name}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2.5"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm text-white">{s.name}</p>
+                    <p className="text-xs text-white/50">
+                      {s.count} prestation{s.count > 1 ? "s" : ""}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-display text-lg text-pss-pink">
+                      {fmtHoursMinutes(s.minutes)}
+                    </p>
+                    {i === 0 && analytics.byService.length > 1 && (
+                      <p className="text-[10px] uppercase tracking-[0.12em] text-white/40">
+                        Top
+                      </p>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </main>
     </>
