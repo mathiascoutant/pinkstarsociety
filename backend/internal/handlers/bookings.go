@@ -29,12 +29,14 @@ type createBookingBody struct {
 
 func bookingSummaryPeriodRange(period string) (fromDate string, toDate string) {
 	today := time.Now().UTC()
+	todayStr := today.Format("2006-01-02")
 	switch period {
 	case "last_30_days":
-		return today.AddDate(0, 0, -29).Format("2006-01-02"), ""
+		return today.AddDate(0, 0, -29).Format("2006-01-02"), todayStr
 	case "month":
 		monthStart := time.Date(today.Year(), today.Month(), 1, 0, 0, 0, 0, time.UTC)
-		return monthStart.Format("2006-01-02"), ""
+		monthEnd := monthStart.AddDate(0, 1, -1)
+		return monthStart.Format("2006-01-02"), monthEnd.Format("2006-01-02")
 	default:
 		return "", ""
 	}
