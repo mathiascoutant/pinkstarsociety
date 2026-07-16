@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
 import { useAuth } from "../context/AuthContext";
+import { LOYALTY_CYCLE_POINTS, LOYALTY_MILESTONES } from "../lib/adminShared";
 import { useLenis } from "../lib/useLenis";
 import { api } from "../lib/api";
 
@@ -184,14 +185,10 @@ function EmptyState({ label }: { label: string }) {
   );
 }
 
-const loyaltyMilestones = [
-  { sessions: 3, reward: "–30%", label: "3e pose" },
-  { sessions: 5, reward: "–50%", label: "5e pose" },
-  { sessions: 10, reward: "Offert", label: "10e pose" },
-] as const;
+const loyaltyMilestones = LOYALTY_MILESTONES;
 
-function nextMilestone(count: number) {
-  return loyaltyMilestones.find((m) => count < m.sessions) ?? null;
+function nextMilestone(points: number) {
+  return loyaltyMilestones.find((m) => points < m.points) ?? null;
 }
 
 export default function AccountLoyaltyPage() {
@@ -237,10 +234,9 @@ export default function AccountLoyaltyPage() {
     : "?";
 
   const points = user?.loyaltyPoints ?? 0;
-  const completedSessions = user?.loyaltyProgressCount ?? 0;
-  const progressPercent = Math.min((completedSessions / 10) * 100, 100);
-  const next = nextMilestone(completedSessions);
-  const sessionsToNext = next ? next.sessions - completedSessions : 0;
+  const progressPercent = Math.min((points / LOYALTY_CYCLE_POINTS) * 100, 100);
+  const next = nextMilestone(points);
+  const pointsToNext = next ? next.points - points : 0;
 
   return (
     <div className="relative min-h-screen bg-[#050507] text-white">
@@ -321,7 +317,7 @@ export default function AccountLoyaltyPage() {
               <p className="mt-2 text-[11px] text-white/30">Crédités après chaque prestation</p>
             </motion.div>
 
-            {/* Séances */}
+            {/* Cycle */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -330,15 +326,17 @@ export default function AccountLoyaltyPage() {
             >
               <div className="pointer-events-none absolute -right-4 -top-4 h-24 w-24 rounded-full bg-violet-500/8 blur-[40px]" />
               <p className="text-[10px] uppercase tracking-[0.24em] text-white/35">
-                Séances fidélité
+                Avant reset
               </p>
               <div className="mt-3 flex items-baseline gap-1.5">
                 <span className="font-display text-5xl tabular-nums tracking-tight text-white">
-                  {completedSessions}
+                  {LOYALTY_CYCLE_POINTS - points}
                 </span>
-                <span className="pb-1 text-lg text-white/30">/ 10</span>
+                <span className="pb-1 text-lg text-white/30">pts</span>
               </div>
-              <p className="mt-2 text-[11px] text-white/30">Depuis le début du programme</p>
+              <p className="mt-2 text-[11px] text-white/30">
+                Puis retour à 0 pour un nouveau cycle
+              </p>
             </motion.div>
 
             {/* Prochaine récompense */}
@@ -362,7 +360,7 @@ export default function AccountLoyaltyPage() {
                   <p className="mt-2 text-[11px] text-white/30">
                     Dans{" "}
                     <span className="font-medium text-white/55">
-                      {sessionsToNext} séance{sessionsToNext > 1 ? "s" : ""}
+                      {pointsToNext} pt{pointsToNext > 1 ? "s" : ""}
                     </span>{" "}
                     ({next.label})
                   </p>
@@ -371,10 +369,10 @@ export default function AccountLoyaltyPage() {
                 <>
                   <div className="mt-3">
                     <span className="font-display text-2xl tracking-tight text-white/60">
-                      Tout débloqué
+                      Cycle complet
                     </span>
                   </div>
-                  <p className="mt-2 text-[11px] text-white/30">Toutes les récompenses atteintes</p>
+                  <p className="mt-2 text-[11px] text-white/30">Compteur remis à zéro</p>
                 </>
               )}
             </motion.div>
@@ -408,7 +406,9 @@ export default function AccountLoyaltyPage() {
                 {/* Barre de progression */}
                 <div className="mb-2 flex items-center justify-between text-[11px] uppercase tracking-[0.12em]">
                   <span className="text-white/45">Avancement</span>
-                  <span className="font-medium text-pss-pink">{completedSessions} / 10 poses</span>
+                  <span className="font-medium text-pss-pink">
+                    {points} / {LOYALTY_CYCLE_POINTS} pts
+                  </span>
                 </div>
                 <div className="relative h-3 overflow-hidden rounded-full bg-white/[0.06]">
                   <motion.div
@@ -420,9 +420,9 @@ export default function AccountLoyaltyPage() {
                   {/* Marqueurs jalons sur la barre */}
                   {loyaltyMilestones.map((m) => (
                     <div
-                      key={m.sessions}
+                      key={m.points}
                       className="absolute top-0 h-full w-px bg-[#050507]/60"
-                      style={{ left: `${(m.sessions / 10) * 100}%` }}
+                      style={{ left: `${(m.points / LOYALTY_CYCLE_POINTS) * 100}%` }}
                     />
                   ))}
                 </div>
@@ -430,11 +430,11 @@ export default function AccountLoyaltyPage() {
                 {/* Jalons détaillés */}
                 <div className="mt-5 grid grid-cols-3 gap-3">
                   {loyaltyMilestones.map((milestone) => {
-                    const reached = completedSessions >= milestone.sessions;
-                    const isNext = next?.sessions === milestone.sessions;
+                    const reached = points >= milestone.points;
+                    const isNext = next?.points === milestone.points;
                     return (
                       <div
-                        key={milestone.sessions}
+                        key={milestone.points}
                         className={`relative overflow-hidden rounded-xl border px-4 py-4 text-center transition-all ${
                           reached
                             ? "border-pss-pink/30 bg-pss-pink/8"
@@ -452,8 +452,8 @@ export default function AccountLoyaltyPage() {
                               <path d="M5 13l4 4L19 7" />
                             </svg>
                           ) : (
-                            <span className={`font-display text-xs ${isNext ? "text-white/60" : "text-white/25"}`}>
-                              {milestone.sessions}
+                            <span className={`font-display text-[10px] ${isNext ? "text-white/60" : "text-white/25"}`}>
+                              {milestone.points}
                             </span>
                           )}
                         </div>
@@ -465,7 +465,7 @@ export default function AccountLoyaltyPage() {
                         </p>
                         {isNext && !reached && (
                           <p className="mt-1.5 text-[10px] text-pss-pink/70">
-                            encore {milestone.sessions - completedSessions}
+                            encore {milestone.points - points} pts
                           </p>
                         )}
                       </div>
@@ -480,7 +480,7 @@ export default function AccountLoyaltyPage() {
                       <path d="M12 16v-4" strokeLinecap="round" />
                       <path d="M12 8h.01" strokeLinecap="round" />
                     </svg>
-                    Les points sont crédités après chaque prestation clôturée en salon lors du paiement depuis ton compte.
+                    1 € dépensé = 1 point. À 300 pts : −30 %, à 500 pts : −50 %. À {LOYALTY_CYCLE_POINTS} pts, le compteur repart à 0 pour recommencer le cycle.
                   </div>
                 </div>
               </div>

@@ -17,7 +17,14 @@ export type AdminUser = {
   createdAt?: string;
 };
 
-export type EditUserState = AdminUser & { loyaltyCycleProgress: number };
+export type EditUserState = AdminUser;
+
+export const LOYALTY_CYCLE_POINTS = 1000;
+export const LOYALTY_MILESTONES = [
+  { points: 300, reward: "–30%", label: "300 pts" },
+  { points: 500, reward: "–50%", label: "500 pts" },
+  { points: 1000, reward: "Reset", label: "1000 pts" },
+] as const;
 
 export type ServiceType = { id: string; name: string };
 
@@ -130,13 +137,6 @@ export function userEffectiveTotalCompleted(u: AdminUser): number {
   return 0;
 }
 
-export function userLoyaltyCycleProgress(u: AdminUser): number {
-  const total = userEffectiveTotalCompleted(u);
-  const progress = u.loyaltyProgressCount ?? 0;
-  if (progress === 0 && total > 0 && total % 10 === 0) return 10;
-  return progress;
-}
-
 export function formatUserLoyaltyDisplay(u: AdminUser): {
   serviceName: string | null;
   totalLabel: string | null;
@@ -144,18 +144,16 @@ export function formatUserLoyaltyDisplay(u: AdminUser): {
   pointsLabel: string | null;
 } {
   const total = userEffectiveTotalCompleted(u);
-  const progress = u.loyaltyProgressCount ?? 0;
   const points = u.loyaltyPoints ?? 0;
-  const hasLoyaltyActivity = total > 0 || progress > 0 || points > 0;
+  const hasLoyaltyActivity = total > 0 || points > 0;
   if (!hasLoyaltyActivity) {
     return { serviceName: null, totalLabel: null, progressLabel: null, pointsLabel: null };
   }
-  const cycleProgress = userLoyaltyCycleProgress(u);
   return {
     serviceName: u.lastServiceName?.trim() || null,
     totalLabel: total > 0 ? `${total} prestation${total > 1 ? "s" : ""} au total` : null,
-    progressLabel: `Fidélité ${cycleProgress}/10`,
-    pointsLabel: points > 0 ? `${points} pts` : null,
+    progressLabel: `${points}/${LOYALTY_CYCLE_POINTS} pts`,
+    pointsLabel: null,
   };
 }
 

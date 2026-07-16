@@ -108,6 +108,9 @@ func (h *Handlers) AdminCompleteService(c *gin.Context) {
 		return
 	}
 
+	// Cycle fidélité : 300 pts → −30 %, 500 pts → −50 %, 1000 pts → retour à 0.
+	const loyaltyCyclePoints = 1000
+
 	_, err = h.DB.Collection("users").UpdateOne(
 		ctx,
 		bson.M{"_id": b.ClientUserID},
@@ -115,20 +118,20 @@ func (h *Handlers) AdminCompleteService(c *gin.Context) {
 			bson.M{
 				"$set": bson.M{
 					"loyalty_points": bson.M{
-						"$add": bson.A{
-							bson.M{"$ifNull": bson.A{"$loyalty_points", 0}},
-							pts,
-						},
-					},
-					"loyalty_progress_count": bson.M{
 						"$mod": bson.A{
 							bson.M{
 								"$add": bson.A{
-									bson.M{"$ifNull": bson.A{"$loyalty_progress_count", 0}},
-									1,
+									bson.M{"$ifNull": bson.A{"$loyalty_points", 0}},
+									pts,
 								},
 							},
-							10,
+							loyaltyCyclePoints,
+						},
+					},
+					"loyalty_progress_count": bson.M{
+						"$add": bson.A{
+							bson.M{"$ifNull": bson.A{"$loyalty_progress_count", 0}},
+							1,
 						},
 					},
 					"total_completed_services": bson.M{

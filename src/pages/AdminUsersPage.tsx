@@ -7,11 +7,11 @@ import {
   EditUserState,
   Field,
   Icon,
+  LOYALTY_CYCLE_POINTS,
   Modal,
   formatUserCreatedAt,
   formatUserLoyaltyDisplay,
   userEffectiveTotalCompleted,
-  userLoyaltyCycleProgress,
 } from "../lib/adminShared";
 
 export default function AdminUsersPage() {
@@ -68,7 +68,6 @@ export default function AdminUsersPage() {
           email: editUser.email,
           role: editUser.role,
           loyaltyPoints: editUser.loyaltyPoints ?? 0,
-          loyaltyProgressCount: editUser.loyaltyCycleProgress,
           totalCompletedServices: editUser.totalCompletedServices ?? 0,
         }),
       });
@@ -168,7 +167,6 @@ export default function AdminUsersPage() {
                         setEditUser({
                           ...u,
                           totalCompletedServices: userEffectiveTotalCompleted(u),
-                          loyaltyCycleProgress: userLoyaltyCycleProgress(u),
                         })
                       }
                     >
@@ -266,11 +264,10 @@ export default function AdminUsersPage() {
                         type="button"
                         className="rounded-lg p-2 text-white/60 hover:bg-white/5 hover:text-pss-pink"
                         onClick={() =>
-                          setEditUser({
-                            ...u,
-                            totalCompletedServices: userEffectiveTotalCompleted(u),
-                            loyaltyCycleProgress: userLoyaltyCycleProgress(u),
-                          })
+                            setEditUser({
+                              ...u,
+                              totalCompletedServices: userEffectiveTotalCompleted(u),
+                            })
                         }
                       >
                         <Icon name="edit" className="h-4 w-4" />
@@ -326,15 +323,19 @@ export default function AdminUsersPage() {
             <div className="border-t border-white/10 pt-3">
               <p className="mb-3 text-xs uppercase tracking-[0.14em] text-white/45">Fidélité</p>
               <div className="space-y-3">
-                <Field label="Points">
+                <Field label="Points (cycle / 1000)">
                   <input
                     type="number"
                     min={0}
+                    max={LOYALTY_CYCLE_POINTS}
                     value={editUser.loyaltyPoints ?? 0}
                     onChange={(e) =>
                       setEditUser({
                         ...editUser,
-                        loyaltyPoints: Math.max(0, Number(e.target.value) || 0),
+                        loyaltyPoints: Math.min(
+                          LOYALTY_CYCLE_POINTS,
+                          Math.max(0, Number(e.target.value) || 0),
+                        ),
                       })
                     }
                     className="input"
@@ -349,24 +350,6 @@ export default function AdminUsersPage() {
                       setEditUser({
                         ...editUser,
                         totalCompletedServices: Math.max(0, Number(e.target.value) || 0),
-                      })
-                    }
-                    className="input"
-                  />
-                </Field>
-                <Field label="Progression sur 10">
-                  <input
-                    type="number"
-                    min={0}
-                    max={10}
-                    value={editUser.loyaltyCycleProgress}
-                    onChange={(e) =>
-                      setEditUser({
-                        ...editUser,
-                        loyaltyCycleProgress: Math.min(
-                          10,
-                          Math.max(0, Number(e.target.value) || 0),
-                        ),
                       })
                     }
                     className="input"

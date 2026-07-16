@@ -157,22 +157,22 @@ func (h *Handlers) AdminPatchUser(c *gin.Context) {
 		set["password_hash"] = hash
 	}
 	if body.LoyaltyPoints != nil {
-		if *body.LoyaltyPoints < 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "points fidélité invalides"})
+		if *body.LoyaltyPoints < 0 || *body.LoyaltyPoints > 1000 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "points fidélité invalides (0 à 1000)"})
 			return
 		}
-		set["loyalty_points"] = *body.LoyaltyPoints
+		points := *body.LoyaltyPoints
+		if points == 1000 {
+			points = 0
+		}
+		set["loyalty_points"] = points
 	}
 	if body.LoyaltyProgressCount != nil {
-		if *body.LoyaltyProgressCount < 0 || *body.LoyaltyProgressCount > 10 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "progression fidélité invalide (0 à 10)"})
+		if *body.LoyaltyProgressCount < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "progression fidélité invalide"})
 			return
 		}
-		progress := *body.LoyaltyProgressCount
-		if progress == 10 {
-			progress = 0
-		}
-		set["loyalty_progress_count"] = progress
+		set["loyalty_progress_count"] = *body.LoyaltyProgressCount
 	}
 	if body.TotalCompletedServices != nil {
 		if *body.TotalCompletedServices < 0 {
