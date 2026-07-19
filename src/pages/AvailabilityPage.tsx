@@ -10,6 +10,8 @@ import {
   type MonthAvailability,
 } from "../lib/availability";
 
+const INSTA_URL = "https://instagram.com/pinkstar_society";
+
 export default function AvailabilityPage() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -59,15 +61,19 @@ export default function AvailabilityPage() {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#050507] text-white">
-      {/* BG */}
-      <div className="pointer-events-none absolute inset-0 grid-noise opacity-25" />
-      <div className="pointer-events-none absolute -left-32 top-1/4 h-[36rem] w-[36rem] rounded-full bg-pss-pink/15 blur-[180px]" />
-      <div className="pointer-events-none absolute -right-32 -bottom-32 h-[26rem] w-[26rem] rounded-full bg-fuchsia-500/12 blur-[150px]" />
+      {/* Atmosphere */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-0 grid-noise opacity-[0.18]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(244,63,155,0.18),transparent_55%)]" />
+        <div className="absolute -left-40 top-[30%] h-[28rem] w-[28rem] rounded-full bg-pss-pink/[0.07] blur-[120px]" />
+        <div className="absolute -right-32 bottom-0 h-[22rem] w-[22rem] rounded-full bg-white/[0.03] blur-[100px]" />
+        <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#050507] to-transparent" />
+      </div>
 
       {/* Top bar */}
-      <div className="relative z-10 mx-auto flex max-w-[1400px] items-center justify-between px-5 py-5 md:px-10">
-        <Link to="/" className="flex items-center gap-3">
-          <span className="grid h-9 w-9 place-items-center">
+      <header className="relative z-10 mx-auto flex max-w-[1200px] items-center justify-between px-5 py-5 md:px-10">
+        <Link to="/" className="group flex items-center gap-3">
+          <span className="grid h-9 w-9 place-items-center transition group-hover:scale-105">
             <Star />
           </span>
           <span className="font-display text-base uppercase tracking-[0.06em] text-white">
@@ -76,83 +82,80 @@ export default function AvailabilityPage() {
         </Link>
         <Link
           to="/"
-          className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.22em] text-white/55 transition hover:text-pss-pink"
+          className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 text-[11px] uppercase tracking-[0.2em] text-white/60 transition hover:border-pss-pink/40 hover:text-pss-pink"
         >
           <ArrowLeft />
-          Retour
+          Accueil
         </Link>
-      </div>
+      </header>
 
-      <div className="relative z-10 mx-auto w-full max-w-[1100px] px-5 pb-16 pt-2 md:px-10 md:pt-8">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="mb-10 text-center"
-        >
-          <div className="flex items-center justify-center gap-3 text-[10px] uppercase tracking-[0.32em] text-white/55">
-            <span className="font-mono text-pss-pink">/03</span>
-            <span className="h-px w-10 bg-white/15" />
-            <span>Disponibilités</span>
-          </div>
-          <h1 className="mt-4 font-display text-3xl uppercase leading-[1] tracking-[-0.02em] sm:text-5xl">
-            <span className="block py-[0.06em] text-white">
-              Quand <span className="text-pss-pink">est-ce</span> ?
-            </span>
-          </h1>
-          <div className="mx-auto mt-5 flex flex-wrap items-center justify-center gap-2 sm:mt-6 sm:gap-3">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-400/15 px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-emerald-200 sm:gap-2 sm:px-4 sm:py-2 sm:text-[12px] sm:tracking-[0.18em]">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(74,222,128,0.7)] sm:h-2.5 sm:w-2.5" />
-              Libre
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-red-500/40 bg-red-500/15 px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-red-200 sm:gap-2 sm:px-4 sm:py-2 sm:text-[12px] sm:tracking-[0.18em]">
-              <span className="h-2 w-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.7)] sm:h-2.5 sm:w-2.5" />
-              Pris
-            </span>
-          </div>
-        </motion.div>
-
-        {/* Card */}
+      <main className="relative z-10 mx-auto w-full max-w-[1000px] px-5 pb-20 pt-4 md:px-10 md:pt-10">
+        {/* Intro */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1, duration: 0.6 }}
-          className="glass-card relative rounded-2xl p-3 sm:rounded-3xl sm:p-7 md:p-8"
+          transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+          className="mb-10 text-center md:mb-14"
         >
+          <div className="flex items-center justify-center gap-3 text-[10px] uppercase tracking-[0.34em] text-white/50">
+            <span className="h-px w-8 bg-gradient-to-r from-transparent to-pss-pink/70" />
+            <span>Agenda</span>
+            <span className="h-px w-8 bg-gradient-to-l from-transparent to-pss-pink/70" />
+          </div>
+
+          <h1 className="mt-5 font-display text-[2.6rem] uppercase leading-[0.95] tracking-[-0.03em] sm:text-5xl md:text-6xl">
+            <span className="block text-white">Quand</span>
+            <span className="block text-pss-pink">est-ce ?</span>
+          </h1>
+
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15, duration: 0.6 }}
+            className="mx-auto mt-5 max-w-md font-serif text-[16px] leading-relaxed text-white/60 md:text-[17px]"
+          >
+            Choisis un jour, regarde les créneaux libres, puis écris-moi pour
+            réserver le tien.
+          </motion.p>
+        </motion.div>
+
+        {/* Calendar */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.12, duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          className="relative overflow-hidden rounded-[1.75rem] border border-white/[0.08] bg-gradient-to-b from-white/[0.055] to-white/[0.015] p-4 shadow-[0_30px_80px_-40px_rgba(244,63,155,0.35)] sm:rounded-[2rem] sm:p-7 md:p-9"
+        >
+          <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-pss-pink/40 to-transparent" />
+
           <MonthHeader
             year={year}
             month={month}
             onPrev={prev}
             onNext={next}
             right={
-              data.published ? (
-                <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-emerald-300">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  Publié
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-white/55">
-                  <span className="h-1.5 w-1.5 rounded-full bg-white/40" />À
-                  venir
+              data.published ? undefined : (
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] text-white/45">
+                  <span className="h-1.5 w-1.5 rounded-full bg-white/30" />
+                  Bientôt
                 </span>
               )
             }
           />
 
-          <div className="relative mt-8">
-            <div className={data.published ? "" : "pointer-events-none"}>
+          <div className="relative mt-7 sm:mt-9">
+            <div className={data.published ? "" : "pointer-events-none select-none"}>
               <AvailabilityCalendar data={data} mode="public" />
             </div>
 
             {(!data.published || loading) && (
-              <div className="absolute inset-0 grid place-items-center rounded-2xl bg-black/40 backdrop-blur-[3px]">
+              <div className="absolute inset-0 grid place-items-center rounded-2xl bg-[#050507]/55 backdrop-blur-[4px]">
                 <div className="max-w-xs px-6 text-center">
-                  <div className="font-display text-3xl uppercase leading-tight text-white">
+                  <div className="font-display text-3xl uppercase leading-tight tracking-tight text-white">
                     {loading ? "Chargement…" : "Bientôt"}
                   </div>
                   {!loading && (
-                    <p className="mt-2 font-serif text-[15px] leading-relaxed text-white/70">
+                    <p className="mt-3 font-serif text-[15px] leading-relaxed text-white/65">
                       Les disponibilités de ce mois ne sont pas encore
                       publiées. Reviens plus tard ou écris en DM.
                     </p>
@@ -161,35 +164,40 @@ export default function AvailabilityPage() {
               </div>
             )}
           </div>
-        </motion.div>
+        </motion.section>
 
-        {/* Booking CTA */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
+        {/* CTA */}
+        <motion.section
+          initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.6 }}
-          className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-white/10 bg-white/[0.025] p-5 sm:p-7"
+          transition={{ delay: 0.22, duration: 0.65 }}
+          className="relative mt-8 overflow-hidden rounded-[1.75rem] border border-pss-pink/25 bg-gradient-to-br from-pss-pink/[0.12] via-white/[0.03] to-transparent p-6 sm:mt-10 sm:rounded-[2rem] sm:p-8"
         >
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.22em] text-white/45">
-              Un créneau te plaît ?
+          <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-pss-pink/20 blur-[70px]" />
+          <div className="relative flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.24em] text-pss-pink/80">
+                Réservation
+              </p>
+              <h2 className="mt-2 font-display text-2xl uppercase leading-[1.05] tracking-tight text-white sm:text-3xl">
+                Un créneau te plaît ?
+              </h2>
+              <p className="mt-2 max-w-sm font-serif text-[15px] leading-relaxed text-white/60">
+                Envoie-moi un message — on valide ensemble la date et le set.
+              </p>
             </div>
-            <div className="mt-1 font-display text-xl uppercase leading-tight text-white sm:text-2xl">
-              On commence par{" "}
-              <span className="text-pss-pink">un message.</span>
-            </div>
+            <a
+              href={INSTA_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="btn-pink w-full justify-center sm:w-auto"
+            >
+              <InstaIcon />
+              DM Instagram
+            </a>
           </div>
-          <a
-            href="https://instagram.com/pinkstar_society"
-            target="_blank"
-            rel="noreferrer"
-            className="btn-pink"
-          >
-            <InstaIcon />
-            DM Instagram
-          </a>
-        </motion.div>
-      </div>
+        </motion.section>
+      </main>
     </div>
   );
 }
