@@ -7,15 +7,18 @@ import AvailabilityCalendar, {
 import {
   defaultMonth,
   fetchAdminMonth,
+  isDayFullyOpen,
   mergeBookings,
   migrateLegacyAvailabilityIfNeeded,
   publishMonth,
   saveAdminMonth,
   setDayBothPure,
+  SLOT_KEYS,
   toggleSlotPure,
   unpublishMonth,
   type BookingLite,
   type MonthAvailability,
+  type SlotKey,
 } from "../lib/availability";
 import { api } from "../lib/api";
 
@@ -79,10 +82,9 @@ export default function AdminAvailabilityPage() {
   }, [year, month]);
 
   const stats = useMemo(() => {
-    const total = data.days.length * 2;
+    const total = data.days.length * SLOT_KEYS.length;
     const open = data.days.reduce(
-      (n, d) =>
-        n + (d.morning === "open" ? 1 : 0) + (d.afternoon === "open" ? 1 : 0),
+      (n, d) => n + SLOT_KEYS.filter((k) => d[k] === "open").length,
       0,
     );
     return { total, open, blocked: total - open };
@@ -107,7 +109,7 @@ export default function AdminAvailabilityPage() {
     return saved;
   }
 
-  async function handleToggle(day: number, slot: "morning" | "afternoon") {
+  async function handleToggle(day: number, slot: SlotKey) {
     try {
       await persistBase(toggleSlotPure(baseData, day, slot));
     } catch {
@@ -119,7 +121,7 @@ export default function AdminAvailabilityPage() {
   async function handleToggleDay(day: number) {
     const d = baseData.days.find((x) => x.day === day);
     if (!d) return;
-    const allOpen = d.morning === "open" && d.afternoon === "open";
+    const allOpen = isDayFullyOpen(d);
     try {
       await persistBase(setDayBothPure(baseData, day, allOpen ? "blocked" : "open"));
     } catch {

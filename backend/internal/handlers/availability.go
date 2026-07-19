@@ -40,6 +40,36 @@ func isValidSlotStatus(s string) bool {
 	return s == "open" || s == "blocked"
 }
 
+func fallbackSlot(primary, legacy string) string {
+	if isValidSlotStatus(primary) {
+		return primary
+	}
+	if isValidSlotStatus(legacy) {
+		return legacy
+	}
+	return "blocked"
+}
+
+// normalizeDayAvailability migre morning/afternoon → h08/h10/h14/h17.
+func normalizeDayAvailability(d models.DayAvailability) models.DayAvailability {
+	return models.DayAvailability{
+		Day: d.Day,
+		H08: fallbackSlot(d.H08, d.Morning),
+		H10: fallbackSlot(d.H10, d.Morning),
+		H14: fallbackSlot(d.H14, d.Afternoon),
+		H17: fallbackSlot(d.H17, d.Afternoon),
+	}
+}
+
+func normalizeMonthAvailability(m models.MonthAvailability) models.MonthAvailability {
+	days := make([]models.DayAvailability, len(m.Days))
+	for i, d := range m.Days {
+		days[i] = normalizeDayAvailability(d)
+	}
+	m.Days = days
+	return m
+}
+
 func defaultMonthAvailability(year, month int) models.MonthAvailability {
 	total := daysInMonth(year, month)
 	days := make([]models.DayAvailability, 0, total)
@@ -51,9 +81,11 @@ func defaultMonthAvailability(year, month int) models.MonthAvailability {
 			slot = "blocked"
 		}
 		days = append(days, models.DayAvailability{
-			Day:       d,
-			Morning:   slot,
-			Afternoon: slot,
+			Day: d,
+			H08: slot,
+			H10: slot,
+			H14: slot,
+			H17: slot,
 		})
 	}
 	return models.MonthAvailability{
@@ -74,7 +106,9 @@ func validateMonthAvailability(m models.MonthAvailability) bool {
 		if d.Day < 1 || d.Day > expected || seen[d.Day] {
 			return false
 		}
-		if !isValidSlotStatus(d.Morning) || !isValidSlotStatus(d.Afternoon) {
+		nd := normalizeDayAvailability(d)
+		if !isValidSlotStatus(nd.H08) || !isValidSlotStatus(nd.H10) ||
+			!isValidSlotStatus(nd.H14) || !isValidSlotStatus(nd.H17) {
 			return false
 		}
 		seen[d.Day] = true
@@ -83,12 +117,15 @@ func validateMonthAvailability(m models.MonthAvailability) bool {
 }
 
 func monthAvailabilityJSON(m models.MonthAvailability) gin.H {
+	m = normalizeMonthAvailability(m)
 	days := make([]gin.H, 0, len(m.Days))
 	for _, d := range m.Days {
 		days = append(days, gin.H{
-			"day":       d.Day,
-			"morning":   d.Morning,
-			"afternoon": d.Afternoon,
+			"day": d.Day,
+			"h08": d.H08,
+			"h10": d.H10,
+			"h14": d.H14,
+			"h17": d.H17,
 		})
 	}
 	out := gin.H{
@@ -155,6 +192,7 @@ func (h *Handlers) confirmedBookingsForMonth(ctx context.Context, year, month in
 }
 
 func applyBookingsToMonth(m *models.MonthAvailability, bookings []models.Booking) {
+	*m = normalizeMonthAvailability(*m)
 	target := fmt.Sprintf("%04d-%02d", m.Year, m.Month)
 	for _, b := range bookings {
 		if len(b.Date) < len(target) || b.Date[:len(target)] != target {
@@ -172,11 +210,17 @@ func applyBookingsToMonth(m *models.MonthAvailability, bookings []models.Booking
 			if m.Days[i].Day != day {
 				continue
 			}
-			if bookingtime.OverlapsHalfDayWindow(b, "morning") {
-				m.Days[i].Morning = "blocked"
+			if bookingtime.OverlapsSlotWindow(b, "h08") {
+				m.Days[i].H08 = "blocked"
 			}
-			if bookingtime.OverlapsHalfDayWindow(b, "afternoon") {
-				m.Days[i].Afternoon = "blocked"
+			if bookingtime.OverlapsSlotWindow(b, "h10") {
+				m.Days[i].H10 = "blocked"
+			}
+			if bookingtime.OverlapsSlotWindow(b, "h14") {
+				m.Days[i].H14 = "blocked"
+			}
+			if bookingtime.OverlapsSlotWindow(b, "h17") {
+				m.Days[i].H17 = "blocked"
 			}
 			break
 		}
@@ -233,11 +277,11 @@ func (h *Handlers) AdminPutAvailability(c *gin.Context) {
 		return
 	}
 
-	doc := models.MonthAvailability{
+	doc := normalizeMonthAvailability(models.MonthAvailability{
 		Year:  year,
 		Month: month,
 		Days:  body.Days,
-	}
+	})
 
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
@@ -278,6 +322,8 @@ func (h *Handlers) AdminPublishAvailability(c *gin.Context) {
 	doc, found, err := h.loadMonthAvailability(ctx, year, month)
 	if err != nil || !found {
 		doc = defaultMonthAvailability(year, month)
+	} else {
+		doc = normalizeMonthAvailability(doc)
 	}
 	doc.Published = true
 
@@ -304,6 +350,8 @@ func (h *Handlers) AdminUnpublishAvailability(c *gin.Context) {
 	doc, found, err := h.loadMonthAvailability(ctx, year, month)
 	if err != nil || !found {
 		doc = defaultMonthAvailability(year, month)
+	} else {
+		doc = normalizeMonthAvailability(doc)
 	}
 	doc.Published = false
 

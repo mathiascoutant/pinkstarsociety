@@ -4,13 +4,35 @@
 
 import { api } from "./api";
 
-export type SlotKey = "morning" | "afternoon";
+export type SlotKey = "h08" | "h10" | "h14" | "h17";
 export type SlotStatus = "open" | "blocked";
+
+export const SLOT_KEYS: SlotKey[] = ["h08", "h10", "h14", "h17"];
+
+export const SLOT_LABELS: Record<SlotKey, string> = {
+  h08: "8h",
+  h10: "10h",
+  h14: "14h",
+  h17: "17h",
+};
+
+/** Fenêtres en minutes (fin exclusive) pour synchroniser les RDV. */
+const SLOT_WINDOWS: Record<SlotKey, [number, number]> = {
+  h08: [8 * 60, 10 * 60],
+  h10: [10 * 60, 14 * 60],
+  h14: [14 * 60, 17 * 60],
+  h17: [17 * 60, 24 * 60],
+};
 
 export type DayAvailability = {
   day: number;
-  morning: SlotStatus;
-  afternoon: SlotStatus;
+  h08: SlotStatus;
+  h10: SlotStatus;
+  h14: SlotStatus;
+  h17: SlotStatus;
+  /** legacy */
+  morning?: SlotStatus;
+  afternoon?: SlotStatus;
 };
 
 export type MonthAvailability = {
@@ -32,16 +54,42 @@ export function firstWeekdayMon(year: number, month: number): number {
   return (d + 6) % 7;
 }
 
+function isSlotStatus(v: unknown): v is SlotStatus {
+  return v === "open" || v === "blocked";
+}
+
+export function normalizeDay(d: DayAvailability): DayAvailability {
+  const morning = isSlotStatus(d.morning) ? d.morning : "blocked";
+  const afternoon = isSlotStatus(d.afternoon) ? d.afternoon : "blocked";
+  return {
+    day: d.day,
+    h08: isSlotStatus(d.h08) ? d.h08 : morning,
+    h10: isSlotStatus(d.h10) ? d.h10 : morning,
+    h14: isSlotStatus(d.h14) ? d.h14 : afternoon,
+    h17: isSlotStatus(d.h17) ? d.h17 : afternoon,
+  };
+}
+
+export function normalizeMonth(m: MonthAvailability): MonthAvailability {
+  return {
+    ...m,
+    days: (m.days || []).map(normalizeDay),
+  };
+}
+
 export function defaultMonth(year: number, month: number): MonthAvailability {
   const total = daysInMonth(year, month);
   const days: DayAvailability[] = [];
   for (let d = 1; d <= total; d++) {
     const dow = new Date(year, month - 1, d).getDay();
     const isWeekend = dow === 0 || dow === 6;
+    const slot: SlotStatus = isWeekend ? "blocked" : "open";
     days.push({
       day: d,
-      morning: isWeekend ? "blocked" : "open",
-      afternoon: isWeekend ? "blocked" : "open",
+      h08: slot,
+      h10: slot,
+      h14: slot,
+      h17: slot,
     });
   }
   return { year, month, published: false, days };
@@ -51,31 +99,41 @@ export async function fetchAdminMonth(
   year: number,
   month: number,
 ): Promise<MonthAvailability> {
-  return api<MonthAvailability>(`/admin/availability/${year}/${month}`);
+  const m = await api<MonthAvailability>(`/admin/availability/${year}/${month}`);
+  return normalizeMonth(m);
 }
 
 export async function saveAdminMonth(
   m: MonthAvailability,
 ): Promise<MonthAvailability> {
-  return api<MonthAvailability>(
-    `/admin/availability/${m.year}/${m.month}`,
+  const normalized = normalizeMonth(m);
+  const saved = await api<MonthAvailability>(
+    `/admin/availability/${normalized.year}/${normalized.month}`,
     {
       method: "PUT",
       body: JSON.stringify({
-        days: m.days,
-        published: m.published,
+        days: normalized.days.map((d) => ({
+          day: d.day,
+          h08: d.h08,
+          h10: d.h10,
+          h14: d.h14,
+          h17: d.h17,
+        })),
+        published: normalized.published,
       }),
     },
   );
+  return normalizeMonth(saved);
 }
 
 export async function publishMonth(
   year: number,
   month: number,
 ): Promise<MonthAvailability> {
-  return api<MonthAvailability>(
-    `/admin/availability/${year}/${month}/publish`,
-    { method: "POST" },
+  return normalizeMonth(
+    await api<MonthAvailability>(`/admin/availability/${year}/${month}/publish`, {
+      method: "POST",
+    }),
   );
 }
 
@@ -83,9 +141,11 @@ export async function unpublishMonth(
   year: number,
   month: number,
 ): Promise<MonthAvailability> {
-  return api<MonthAvailability>(
-    `/admin/availability/${year}/${month}/unpublish`,
-    { method: "POST" },
+  return normalizeMonth(
+    await api<MonthAvailability>(
+      `/admin/availability/${year}/${month}/unpublish`,
+      { method: "POST" },
+    ),
   );
 }
 
@@ -93,7 +153,9 @@ export async function fetchPublicMonth(
   year: number,
   month: number,
 ): Promise<MonthAvailability> {
-  return api<MonthAvailability>(`/public/availability/${year}/${month}`);
+  return normalizeMonth(
+    await api<MonthAvailability>(`/public/availability/${year}/${month}`),
+  );
 }
 
 export function toggleSlotPure(
@@ -101,7 +163,7 @@ export function toggleSlotPure(
   day: number,
   slot: SlotKey,
 ): MonthAvailability {
-  const out: MonthAvailability = JSON.parse(JSON.stringify(m));
+  const out: MonthAvailability = JSON.parse(JSON.stringify(normalizeMonth(m)));
   const d = out.days.find((x) => x.day === day);
   if (!d) return out;
   d[slot] = d[slot] === "open" ? "blocked" : "open";
@@ -113,12 +175,16 @@ export function setDayBothPure(
   day: number,
   status: SlotStatus,
 ): MonthAvailability {
-  const out: MonthAvailability = JSON.parse(JSON.stringify(m));
+  const out: MonthAvailability = JSON.parse(JSON.stringify(normalizeMonth(m)));
   const d = out.days.find((x) => x.day === day);
   if (!d) return out;
-  d.morning = status;
-  d.afternoon = status;
+  for (const key of SLOT_KEYS) d[key] = status;
   return out;
+}
+
+export function isDayFullyOpen(d: DayAvailability): boolean {
+  const n = normalizeDay(d);
+  return SLOT_KEYS.every((k) => n[k] === "open");
 }
 
 export type BookingLite = {
@@ -128,7 +194,6 @@ export type BookingLite = {
   paymentStatus: string;
 };
 
-const AFTERNOON_START_MINUTES = 13 * 60;
 const DEFAULT_DURATION_MINUTES = 60;
 
 export function isConfirmedBooking(b: { paymentStatus: string }): boolean {
@@ -167,17 +232,15 @@ function intervalsOverlap(s1: number, e1: number, s2: number, e2: number): boole
   return s1 < e2 && s2 < e1;
 }
 
-function overlapsHalfDayWindow(
+function overlapsSlotWindow(
   time: string,
   endTime: string | undefined,
   slot: SlotKey,
 ): boolean {
   const range = bookingRange(time, endTime);
   if (!range) return false;
-  if (slot === "morning") {
-    return intervalsOverlap(range.start, range.end, 0, AFTERNOON_START_MINUTES);
-  }
-  return intervalsOverlap(range.start, range.end, AFTERNOON_START_MINUTES, 24 * 60);
+  const [ws, we] = SLOT_WINDOWS[slot];
+  return intervalsOverlap(range.start, range.end, ws, we);
 }
 
 export function bookingsOverlap(
@@ -195,7 +258,7 @@ export function mergeBookings(
   m: MonthAvailability,
   bookings: BookingLite[],
 ): MonthAvailability {
-  const out: MonthAvailability = JSON.parse(JSON.stringify(m));
+  const out: MonthAvailability = JSON.parse(JSON.stringify(normalizeMonth(m)));
   const target = `${out.year}-${String(out.month).padStart(2, "0")}`;
   for (const b of bookings) {
     if (!isConfirmedBooking(b)) continue;
@@ -205,8 +268,9 @@ export function mergeBookings(
     const d = out.days.find((x) => x.day === day);
     if (!d) continue;
     const time = b.time || "00:00";
-    if (overlapsHalfDayWindow(time, b.endTime, "morning")) d.morning = "blocked";
-    if (overlapsHalfDayWindow(time, b.endTime, "afternoon")) d.afternoon = "blocked";
+    for (const slot of SLOT_KEYS) {
+      if (overlapsSlotWindow(time, b.endTime, slot)) d[slot] = "blocked";
+    }
   }
   return out;
 }
@@ -220,11 +284,18 @@ export async function migrateLegacyAvailabilityIfNeeded(): Promise<void> {
     if (!Array.isArray(arr)) return;
     for (const m of arr as MonthAvailability[]) {
       if (!m?.year || !m?.month || !Array.isArray(m.days)) continue;
-      await api(`/admin/availability/${m.year}/${m.month}`, {
+      const normalized = normalizeMonth(m);
+      await api(`/admin/availability/${normalized.year}/${normalized.month}`, {
         method: "PUT",
         body: JSON.stringify({
-          days: m.days,
-          published: Boolean(m.published),
+          days: normalized.days.map((d) => ({
+            day: d.day,
+            h08: d.h08,
+            h10: d.h10,
+            h14: d.h14,
+            h17: d.h17,
+          })),
+          published: Boolean(normalized.published),
         }),
       });
     }

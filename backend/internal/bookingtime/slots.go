@@ -8,7 +8,14 @@ import (
 )
 
 const DefaultDurationMinutes = 60
-const AfternoonStartMinutes = 13 * 60
+
+// Fenêtres des 4 créneaux (fin exclusive).
+var SlotWindows = map[string][2]int{
+	"h08": {8 * 60, 10 * 60},
+	"h10": {10 * 60, 14 * 60},
+	"h14": {14 * 60, 17 * 60},
+	"h17": {17 * 60, 24 * 60},
+}
 
 func parseHM(timeStr string) (int, bool) {
 	parts := strings.Split(strings.TrimSpace(timeStr), ":")
@@ -60,17 +67,15 @@ func BookingsOverlap(a, b models.Booking) bool {
 	return IntervalsOverlap(s1, e1, s2, e2)
 }
 
-// OverlapsHalfDayWindow : matin < 13h, après-midi ≥ 13h (grille dispo publique).
-func OverlapsHalfDayWindow(b models.Booking, slot string) bool {
+// OverlapsSlotWindow : le RDV chevauche-t-il le créneau h08/h10/h14/h17 ?
+func OverlapsSlotWindow(b models.Booking, slot string) bool {
+	window, ok := SlotWindows[slot]
+	if !ok {
+		return false
+	}
 	s, e, ok := Range(b.Time, b.EndTime)
 	if !ok {
 		return false
 	}
-	switch slot {
-	case "morning":
-		return IntervalsOverlap(s, e, 0, AfternoonStartMinutes)
-	case "afternoon":
-		return IntervalsOverlap(s, e, AfternoonStartMinutes, 24*60)
-	}
-	return false
+	return IntervalsOverlap(s, e, window[0], window[1])
 }

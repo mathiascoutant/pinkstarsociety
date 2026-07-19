@@ -88,10 +88,16 @@ type Booking struct {
 }
 
 // SlotStatus: open | blocked
+// Créneaux : h08 (8h), h10 (10h), h14 (14h), h17 (17h).
+// Morning/Afternoon conservés en lecture pour migrer d'anciennes grilles.
 type DayAvailability struct {
 	Day       int    `json:"day" bson:"day"`
-	Morning   string `json:"morning" bson:"morning"`
-	Afternoon string `json:"afternoon" bson:"afternoon"`
+	H08       string `json:"h08" bson:"h08"`
+	H10       string `json:"h10" bson:"h10"`
+	H14       string `json:"h14" bson:"h14"`
+	H17       string `json:"h17" bson:"h17"`
+	Morning   string `json:"morning,omitempty" bson:"morning,omitempty"`
+	Afternoon string `json:"afternoon,omitempty" bson:"afternoon,omitempty"`
 }
 
 type MonthAvailability struct {

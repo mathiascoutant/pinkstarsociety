@@ -1,6 +1,8 @@
 import { motion } from "framer-motion";
 import {
   MONTH_LABELS_FR,
+  SLOT_KEYS,
+  SLOT_LABELS,
   WEEKDAYS_FR_SHORT,
   daysInMonth,
   firstWeekdayMon,
@@ -95,18 +97,17 @@ export default function AvailabilityCalendar({
                 )}
               </div>
 
-              <SlotBar
-                label="Mat"
-                status={day.morning}
-                disabled={mode !== "admin" || isPast}
-                onClick={() => mode === "admin" && onToggle?.(d, "morning")}
-              />
-              <SlotBar
-                label="Aprem"
-                status={day.afternoon}
-                disabled={mode !== "admin" || isPast}
-                onClick={() => mode === "admin" && onToggle?.(d, "afternoon")}
-              />
+              <div className="grid grid-cols-2 gap-0.5 sm:gap-1">
+                {SLOT_KEYS.map((slot) => (
+                  <SlotBar
+                    key={slot}
+                    label={SLOT_LABELS[slot]}
+                    status={day[slot]}
+                    disabled={mode !== "admin" || isPast}
+                    onClick={() => mode === "admin" && onToggle?.(d, slot)}
+                  />
+                ))}
+              </div>
             </motion.div>
           );
         })}
@@ -139,7 +140,7 @@ function SlotBar({
 }) {
   const isOpen = status === "open";
   const base =
-    "mt-1 flex w-full items-center justify-center rounded-md border py-[5px] text-[10px] font-bold uppercase leading-none tracking-[0.1em] transition sm:mt-1.5 sm:justify-between sm:px-2 sm:py-1.5 sm:text-[10px] sm:font-normal sm:tracking-[0.18em]";
+    "flex w-full items-center justify-center rounded-md border py-[4px] text-[9px] font-bold uppercase leading-none tracking-[0.06em] transition sm:justify-between sm:px-1.5 sm:py-1 sm:text-[10px] sm:font-normal sm:tracking-[0.12em]";
   const tone = isOpen
     ? "border-emerald-400/50 bg-emerald-400/25 text-emerald-200 sm:border-emerald-400/30 sm:bg-emerald-400/10 sm:text-emerald-300"
     : "border-red-500/55 bg-red-500/25 text-red-200 sm:border-red-500/35 sm:bg-red-500/12 sm:text-red-300";
@@ -154,9 +155,8 @@ function SlotBar({
           : "cursor-pointer hover:brightness-115 hover:shadow-[0_0_0_2px_rgba(244,63,155,0.25)]"
       }`}
     >
-      <span className="hidden opacity-70 sm:inline">{label}</span>
+      <span className="opacity-90 sm:opacity-70">{label}</span>
       <span className="hidden font-mono sm:inline">{isOpen ? "✓" : "✕"}</span>
-      <span className="sm:hidden">{label === "Mat" ? "MAT" : "APR"}</span>
     </button>
   );
 }
