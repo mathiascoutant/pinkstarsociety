@@ -1,13 +1,28 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { api } from "../lib/api";
-import { BookingSummaryService, Icon, fmtEUR, paymentStatusLabel } from "../lib/adminShared";
+import {
+  BookingSummaryService,
+  Icon,
+  StatCard,
+  fmtEUR,
+  paymentStatusLabel,
+} from "../lib/adminShared";
+
+const PERIOD_LABELS = {
+  month: "sur le mois en cours",
+  year: `sur l'année ${new Date().getFullYear()}`,
+  last_30_days: "sur les 30 derniers jours",
+  all: "depuis le début",
+} as const;
 
 export default function AdminStatsPage() {
   const { openSidebar } = useOutletContext<{ openSidebar: () => void }>();
 
   const [summaryServices, setSummaryServices] = useState<BookingSummaryService[]>([]);
-  const [summaryPeriod, setSummaryPeriod] = useState<"all" | "month" | "last_30_days">("month");
+  const [summaryPeriod, setSummaryPeriod] = useState<
+    "all" | "month" | "year" | "last_30_days"
+  >("month");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -60,26 +75,46 @@ export default function AdminStatsPage() {
         )}
 
         <div className="space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-white/55">
-              {totalCount} prestation(s) · {fmtEUR(total)}
-            </p>
-            <div className="inline-flex rounded-xl border border-white/10 bg-white/[0.02] p-1">
-              {(["month", "last_30_days", "all"] as const).map((p) => (
+          <div className="flex flex-wrap items-center justify-end">
+            <div className="inline-flex flex-wrap rounded-xl border border-white/10 bg-white/[0.02] p-1">
+              {(
+                [
+                  { id: "month" as const, label: "Ce mois" },
+                  { id: "year" as const, label: "Cette année" },
+                  { id: "last_30_days" as const, label: "30 jours" },
+                  { id: "all" as const, label: "Total" },
+                ] as const
+              ).map((p) => (
                 <button
-                  key={p}
+                  key={p.id}
                   type="button"
-                  onClick={() => setSummaryPeriod(p)}
+                  onClick={() => setSummaryPeriod(p.id)}
                   className={`rounded-lg px-3 py-1.5 text-xs uppercase tracking-[0.14em] transition ${
-                    summaryPeriod === p
+                    summaryPeriod === p.id
                       ? "bg-pss-pink/15 text-pss-pink"
                       : "text-white/60 hover:text-white"
                   }`}
                 >
-                  {p === "month" ? "Ce mois" : p === "last_30_days" ? "30 jours" : "Tout"}
+                  {p.label}
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 md:gap-4">
+            <StatCard
+              label="Réservations"
+              value={String(totalCount)}
+              hint={PERIOD_LABELS[summaryPeriod]}
+              icon="calendar"
+              accent
+            />
+            <StatCard
+              label="CA"
+              value={fmtEUR(total)}
+              hint={PERIOD_LABELS[summaryPeriod]}
+              icon="euro"
+            />
           </div>
 
           {summaryServices.length === 0 ? (

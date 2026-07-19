@@ -162,6 +162,13 @@ export function shiftMonth(year: number, month: number, delta: number) {
   return { year: d.getFullYear(), month: d.getMonth() };
 }
 
+/** Montant réellement encaissé pour une réservation (total payé ou acompte). */
+export function bookingCollectedCents(b: Booking): number {
+  if (b.paymentStatus === "paid") return b.priceCents;
+  if (b.paymentStatus === "deposit_paid") return b.depositCents;
+  return 0;
+}
+
 export function computeRevenueAnalytics(
   bookings: Booking[],
   year: number,
@@ -332,7 +339,7 @@ export function paymentStatusLabel(status: string) {
     case "paid":
       return "Totalité payée";
     case "pending":
-      return "En attente";
+      return "En attente de paiement";
     default:
       return status;
   }

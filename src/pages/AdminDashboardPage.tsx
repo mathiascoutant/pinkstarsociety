@@ -7,11 +7,14 @@ import {
   BookingRow,
   Icon,
   StatCard,
+  bookingCollectedCents,
   computeRevenueAnalytics,
   computeHoursAnalytics,
   fmtEUR,
   fmtHoursMinutes,
   formatLongDate,
+  paymentStatusLabel,
+  paymentStatusTone,
   shiftDate,
   shiftMonth,
   todayISO,
@@ -19,6 +22,17 @@ import {
 
 type RevenueAnalytics = ReturnType<typeof computeRevenueAnalytics>;
 type HoursAnalytics = ReturnType<typeof computeHoursAnalytics>;
+
+const AGENDA_SLOTS = ["08:00", "10:00", "14:00", "17:00"] as const;
+
+function normalizeTime(time: string) {
+  const [h = "0", m = "00"] = time.split(":");
+  return `${h.padStart(2, "0")}:${m.padStart(2, "0").slice(0, 2)}`;
+}
+
+function slotLabel(slot: string) {
+  return `${Number(slot.slice(0, 2))}h`;
+}
 
 export default function AdminDashboardPage() {
   const { openSidebar } = useOutletContext<{ openSidebar: () => void }>();
@@ -55,6 +69,8 @@ export default function AdminDashboardPage() {
   const stats = useMemo(() => {
     const todayCount = bookings.filter((b) => b.date === today).length;
     const start = new Date(today + "T00:00:00");
+    const year = start.getFullYear();
+    const month = start.getMonth();
     const weekStart = new Date(start);
     const day = (weekStart.getDay() + 6) % 7;
     weekStart.setDate(weekStart.getDate() - day);
@@ -64,21 +80,21 @@ export default function AdminDashboardPage() {
       const d = new Date(b.date + "T00:00:00");
       return d >= weekStart && d < weekEnd;
     }).length;
-    const monthBookings = bookings.filter((b) => {
-      const d = new Date(b.date + "T00:00:00");
-      return d.getMonth() === start.getMonth() && d.getFullYear() === start.getFullYear();
-    });
-    const monthHours = computeHoursAnalytics(
-      bookings,
-      start.getFullYear(),
-      start.getMonth(),
-    );
-    const monthRevenue = monthBookings.reduce((s, b) => s + b.priceCents, 0);
+
+    const monthStart = `${year}-${String(month + 1).padStart(2, "0")}-01`;
+    const mtdBookings = bookings.filter((b) => b.date >= monthStart && b.date <= today);
+    const mtdCollectedCents = mtdBookings.reduce((s, b) => s + bookingCollectedCents(b), 0);
+    const mtdRevenueCents = mtdBookings.reduce((s, b) => s + b.priceCents, 0);
+
+    const monthHours = computeHoursAnalytics(bookings, year, month);
     const pendingCount = bookings.filter((b) => b.paymentStatus === "pending").length;
+
     return {
       todayCount,
       weekCount,
-      monthRevenue,
+      mtdCollectedCents,
+      mtdRevenueCents,
+      mtdBookingsCount: mtdBookings.length,
       monthMinutes: monthHours.totalMinutes,
       monthBookingsCount: monthHours.totalBookings,
       pendingCount,
@@ -92,6 +108,20 @@ export default function AdminDashboardPage() {
         .sort((a, b) => a.time.localeCompare(b.time)),
     [bookings, selectedDate],
   );
+
+  const agendaSlots = useMemo(() => {
+    const used = new Set<string>();
+    const slots = AGENDA_SLOTS.map((slot) => {
+      const hour = slot.slice(0, 2);
+      const booking =
+        dayBookings.find((b) => normalizeTime(b.time) === slot) ||
+        dayBookings.find((b) => normalizeTime(b.time).startsWith(`${hour}:`));
+      if (booking) used.add(booking.id);
+      return { slot, booking: booking ?? null };
+    });
+    const extras = dayBookings.filter((b) => !used.has(b.id));
+    return { slots, extras };
+  }, [dayBookings]);
 
   const revenueAnalytics = useMemo(
     () => computeRevenueAnalytics(bookings, revenueMonth.year, revenueMonth.month),
@@ -160,9 +190,9 @@ export default function AdminDashboardPage() {
             icon="chart"
           />
           <StatCard
-            label="CA du mois"
-            value={fmtEUR(stats.monthRevenue)}
-            hint="voir le détail"
+            label="Gains du mois"
+            value={fmtEUR(stats.mtdCollectedCents)}
+            hint={`${stats.mtdBookingsCount} RDV · CA ${fmtEUR(stats.mtdRevenueCents)} · détail`}
             icon="euro"
             onClick={() => {
               const d = new Date();
@@ -234,30 +264,79 @@ export default function AdminDashboardPage() {
             </div>
           </div>
 
-          <div className="p-5">
-            {dayBookings.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-white/10 p-10 text-center">
-                <p className="text-sm text-white/55">Aucun rendez-vous ce jour-là.</p>
-                <button
-                  type="button"
-                  onClick={() => navigate("/admin/reservations")}
-                  className="mt-4 inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-xs text-white/60 transition hover:border-pss-pink/30 hover:text-white"
-                >
-                  Voir toutes les réservations
-                </button>
-              </div>
-            ) : (
-              <ul className="space-y-3">
-                {dayBookings.map((b) => (
-                  <BookingRow
-                    key={b.id}
-                    b={b}
-                    onSelect={(booking) =>
+          <div className="space-y-4 p-4 md:p-5">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {agendaSlots.slots.map(({ slot, booking }) =>
+                booking ? (
+                  <button
+                    key={slot}
+                    type="button"
+                    onClick={() =>
                       navigate(`/admin/reservations?detail=${booking.id}`)
                     }
-                  />
-                ))}
-              </ul>
+                    className="flex min-h-[120px] flex-col rounded-2xl border border-pss-pink/40 bg-pss-pink/10 p-4 text-left transition hover:border-pss-pink/60 hover:bg-pss-pink/15"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-display text-lg text-pss-pink">
+                        {slotLabel(slot)}
+                      </span>
+                      <span
+                        className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] uppercase tracking-[0.1em] ${paymentStatusTone(booking.paymentStatus)}`}
+                      >
+                        {paymentStatusLabel(booking.paymentStatus)}
+                      </span>
+                    </div>
+                    <span className="mt-2 truncate text-sm font-medium text-white">
+                      {booking.serviceTypeName}
+                    </span>
+                    <span className="mt-1 truncate text-xs text-white/60">
+                      {booking.clientName ||
+                        (booking.clientUserId ? "—" : "Visiteur")}
+                    </span>
+                    <span className="mt-auto pt-3 text-xs text-white/50">
+                      {normalizeTime(booking.time)}
+                      {booking.endTime ? ` → ${booking.endTime}` : ""}
+                    </span>
+                  </button>
+                ) : (
+                  <button
+                    key={slot}
+                    type="button"
+                    onClick={() =>
+                      navigate(
+                        `/admin/reservations?new=1&date=${selectedDate}&time=${encodeURIComponent(slot)}`,
+                      )
+                    }
+                    className="flex min-h-[120px] flex-col items-start justify-between rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-4 text-left transition hover:border-pss-pink/40 hover:bg-white/[0.04]"
+                  >
+                    <span className="font-display text-lg text-white/70">
+                      {slotLabel(slot)}
+                    </span>
+                    <span className="text-xs text-white/40">
+                      Libre · cliquer pour réserver
+                    </span>
+                  </button>
+                ),
+              )}
+            </div>
+
+            {agendaSlots.extras.length > 0 && (
+              <div>
+                <p className="mb-2 text-[10px] uppercase tracking-[0.16em] text-white/40">
+                  Autres créneaux
+                </p>
+                <ul className="space-y-2">
+                  {agendaSlots.extras.map((b) => (
+                    <BookingRow
+                      key={b.id}
+                      b={b}
+                      onSelect={(booking) =>
+                        navigate(`/admin/reservations?detail=${booking.id}`)
+                      }
+                    />
+                  ))}
+                </ul>
+              </div>
             )}
           </div>
         </div>

@@ -20,7 +20,7 @@ import {
 
 export default function AdminBookingsPage() {
   const { openSidebar } = useOutletContext<{ openSidebar: () => void }>();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [services, setServices] = useState<ServiceType[]>([]);
@@ -38,6 +38,55 @@ export default function AdminBookingsPage() {
   const [bDeposit, setBDeposit] = useState("");
   const [bDesc, setBDesc] = useState("");
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  async function copyReservationLink(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+    } catch {
+      setLinkCopied(false);
+    }
+  }
+
+  function clearBookingQueryParams(...keys: string[]) {
+    const next = new URLSearchParams(searchParams);
+    let changed = false;
+    for (const key of keys) {
+      if (next.has(key)) {
+        next.delete(key);
+        changed = true;
+      }
+    }
+    if (changed) setSearchParams(next, { replace: true });
+  }
+
+  function closeNewBooking() {
+    setShowNewBooking(false);
+    setCreatedUrl(null);
+    setLinkCopied(false);
+    clearBookingQueryParams("new", "date", "time");
+  }
+
+  function closeDetailBooking() {
+    setDetailBooking(null);
+    clearBookingQueryParams("detail");
+  }
+
+  function openNewBooking(prefill?: { date?: string; time?: string }) {
+    setDetailBooking(null);
+    setCreatedUrl(null);
+    setLinkCopied(false);
+    setBServiceId("");
+    setBDate(prefill?.date || todayISO());
+    setBTime(prefill?.time || "");
+    setBEndTime("");
+    setBPrice("");
+    setBDeposit("");
+    setBDesc("");
+    setShowNewBooking(true);
+    clearBookingQueryParams("detail");
+  }
 
   // Detail booking modal
   const [detailBooking, setDetailBooking] = useState<Booking | null>(null);
@@ -78,20 +127,39 @@ export default function AdminBookingsPage() {
   // Auto-open detail from URL param (e.g. coming from dashboard)
   useEffect(() => {
     const detailId = searchParams.get("detail");
-    if (detailId && bookings.length > 0) {
-      const found = bookings.find((b) => b.id === detailId);
-      if (found) setDetailBooking(found);
+    if (!detailId || searchParams.get("new") === "1") return;
+    if (bookings.length === 0) return;
+    const found = bookings.find((b) => b.id === detailId);
+    if (found) {
+      setShowNewBooking(false);
+      setDetailBooking(found);
     }
   }, [searchParams, bookings]);
 
-  // Sync detail booking with latest data
-  const detailId = detailBooking?.id;
+  // Auto-open create modal with date/time prefilled from agenda (once per URL)
   useEffect(() => {
-    if (!detailId) return;
-    const next = bookings.find((x) => x.id === detailId);
-    if (!next) setDetailBooking(null);
-    else setDetailBooking(next);
-  }, [bookings, detailId]);
+    if (searchParams.get("new") !== "1") return;
+    setDetailBooking(null);
+    setCreatedUrl(null);
+    setLinkCopied(false);
+    setBServiceId("");
+    setBDate(searchParams.get("date") || todayISO());
+    setBTime(searchParams.get("time") || "");
+    setBEndTime("");
+    setBPrice("");
+    setBDeposit("");
+    setBDesc("");
+    setShowNewBooking(true);
+  }, [searchParams]);
+
+  // Sync open detail with latest booking data (without reopening a closed one)
+  useEffect(() => {
+    setDetailBooking((current) => {
+      if (!current) return null;
+      const next = bookings.find((x) => x.id === current.id);
+      return next ?? null;
+    });
+  }, [bookings]);
 
   useEffect(() => {
     if (!detailBooking) {
@@ -153,9 +221,10 @@ export default function AdminBookingsPage() {
   async function createBooking(e: React.FormEvent) {
     e.preventDefault();
     setCreatedUrl(null);
+    setLinkCopied(false);
     setErr(null);
     try {
-      const r = await api<{ publicUrl: string }>("/admin/bookings", {
+      const r = await api<{ id: string; publicUrl: string }>("/admin/bookings", {
         method: "POST",
         body: JSON.stringify({
           serviceTypeId: bServiceId,
@@ -168,12 +237,11 @@ export default function AdminBookingsPage() {
         }),
       });
       setCreatedUrl(r.publicUrl);
-      setBDesc("");
-      setBPrice("");
-      setBDeposit("");
-      setBTime("");
-      setBEndTime("");
-      void loadBookings();
+      await copyReservationLink(r.publicUrl);
+      clearBookingQueryParams("new", "date", "time", "detail");
+      await loadBookings();
+      // Keep create modal open to show the public link for THIS booking
+      setDetailBooking(null);
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Erreur");
     }
@@ -238,7 +306,7 @@ export default function AdminBookingsPage() {
         </div>
         <button
           type="button"
-          onClick={() => setShowNewBooking(true)}
+          onClick={() => openNewBooking()}
           className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-b from-[#ffb6dd] via-pss-pink to-pss-hot px-3 py-2 text-xs font-medium text-white shadow-[0_0_24px_rgba(244,63,155,0.4)] transition hover:brightness-110 sm:px-4 sm:text-sm"
         >
           <Icon name="plus" className="h-4 w-4" />
@@ -328,10 +396,7 @@ export default function AdminBookingsPage() {
       {showNewBooking && (
         <Modal
           title="Nouveau rendez-vous"
-          onClose={() => {
-            setShowNewBooking(false);
-            setCreatedUrl(null);
-          }}
+          onClose={closeNewBooking}
         >
           <form onSubmit={createBooking} className="space-y-4">
             <Field label="Type de prestation">
@@ -411,7 +476,7 @@ export default function AdminBookingsPage() {
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setShowNewBooking(false)}
+                onClick={closeNewBooking}
                 className="rounded-lg px-4 py-2 text-sm text-white/70 hover:bg-white/5"
               >
                 Annuler
@@ -422,7 +487,11 @@ export default function AdminBookingsPage() {
             </div>
             {createdUrl && (
               <div className="rounded-xl border border-pss-pink/30 bg-pss-pink/10 p-3 text-sm">
-                <p className="text-white/70">Lien public à partager :</p>
+                {linkCopied ? (
+                  <p className="font-medium text-emerald-300">Lien copié dans le presse-papiers</p>
+                ) : (
+                  <p className="text-white/70">Lien public à partager :</p>
+                )}
                 <div className="mt-2 flex gap-2">
                   <input
                     readOnly
@@ -431,10 +500,14 @@ export default function AdminBookingsPage() {
                   />
                   <button
                     type="button"
-                    className="rounded-lg border border-white/20 px-3 py-1 text-xs uppercase"
-                    onClick={() => void navigator.clipboard.writeText(createdUrl)}
+                    className={`rounded-lg border px-3 py-1 text-xs uppercase transition ${
+                      linkCopied
+                        ? "border-emerald-400/40 bg-emerald-500/15 text-emerald-300"
+                        : "border-white/20 text-white/80"
+                    }`}
+                    onClick={() => void copyReservationLink(createdUrl)}
                   >
-                    Copier
+                    {linkCopied ? "Copié" : "Copier"}
                   </button>
                 </div>
               </div>
@@ -443,12 +516,12 @@ export default function AdminBookingsPage() {
         </Modal>
       )}
 
-      {/* Booking detail modal */}
-      {detailBooking && (
+      {/* Booking detail modal — hidden while creating to avoid showing another RDV */}
+      {detailBooking && !showNewBooking && (
         <Modal
           title={detailBooking.serviceTypeName}
           subtitle="Détail du rendez-vous"
-          onClose={() => setDetailBooking(null)}
+          onClose={closeDetailBooking}
           wide
         >
           <div className="grid gap-4 md:grid-cols-2">

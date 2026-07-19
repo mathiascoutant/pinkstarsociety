@@ -37,6 +37,10 @@ func bookingSummaryPeriodRange(period string) (fromDate string, toDate string) {
 		monthStart := time.Date(today.Year(), today.Month(), 1, 0, 0, 0, 0, time.UTC)
 		monthEnd := monthStart.AddDate(0, 1, -1)
 		return monthStart.Format("2006-01-02"), monthEnd.Format("2006-01-02")
+	case "year":
+		yearStart := time.Date(today.Year(), 1, 1, 0, 0, 0, 0, time.UTC)
+		yearEnd := time.Date(today.Year(), 12, 31, 0, 0, 0, 0, time.UTC)
+		return yearStart.Format("2006-01-02"), yearEnd.Format("2006-01-02")
 	default:
 		return "", ""
 	}
@@ -47,7 +51,7 @@ func (h *Handlers) AdminBookingSummary(c *gin.Context) {
 	if period == "" {
 		period = "all"
 	}
-	if period != "all" && period != "month" && period != "last_30_days" {
+	if period != "all" && period != "month" && period != "last_30_days" && period != "year" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "période invalide"})
 		return
 	}
