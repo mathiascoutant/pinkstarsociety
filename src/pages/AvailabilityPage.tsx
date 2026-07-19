@@ -117,6 +117,16 @@ export default function AvailabilityPage() {
             Choisis un jour, regarde les créneaux libres, puis écris-moi pour
             réserver le tien.
           </motion.p>
+
+          <motion.p
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25, duration: 0.55 }}
+            className="mx-auto mt-4 max-w-sm text-[12px] leading-relaxed text-white/45"
+          >
+            Le samedi est possible avec une{" "}
+            <span className="text-pss-pink/90">majoration de 10&nbsp;€</span>.
+          </motion.p>
         </motion.div>
 
         {/* Calendar */}
