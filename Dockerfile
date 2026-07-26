@@ -26,8 +26,11 @@ RUN apk add --no-cache ca-certificates tzdata curl && \
 WORKDIR /app
 COPY --from=api /pinkstarsociety /app/pinkstarsociety
 COPY --from=frontend /app/dist /app/dist
-RUN chmod +x /app/pinkstarsociety && chmod -R a+rX /app/dist
+RUN mkdir -p /app/files && \
+    chown -R nonroot:nonroot /app/files && \
+    chmod +x /app/pinkstarsociety && chmod -R a+rX /app/dist
 ENV STATIC_ROOT=/app/dist
+ENV FILES_ROOT=/app/files
 ENV PORT=8080
 EXPOSE 8080
 USER nonroot

@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "run-p dev:client dev:api",
+    "dev": "run-p --continue-on-error dev:client dev:api",
     "dev:client": "vite",
-    "dev:api": "env-cmd -f .env -- sh -c 'cd backend && exec go run .'",
+    "dev:api": "cd backend && go run .",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "preview:full": "npm run build && run-p preview dev:api"

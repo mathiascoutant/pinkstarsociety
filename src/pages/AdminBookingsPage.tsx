@@ -8,6 +8,7 @@ import {
   DetailRow,
   Field,
   Icon,
+  InspirationImage,
   Modal,
   ServiceType,
   canCompleteService,
@@ -37,8 +38,10 @@ export default function AdminBookingsPage() {
   const [bPrice, setBPrice] = useState("");
   const [bDeposit, setBDeposit] = useState("");
   const [bDesc, setBDesc] = useState("");
+  const [bInspiration, setBInspiration] = useState(false);
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [inspLightbox, setInspLightbox] = useState<InspirationImage | null>(null);
 
   async function copyReservationLink(url: string) {
     try {
@@ -84,6 +87,7 @@ export default function AdminBookingsPage() {
     setBPrice("");
     setBDeposit("");
     setBDesc("");
+    setBInspiration(false);
     setShowNewBooking(true);
     clearBookingQueryParams("detail");
   }
@@ -149,6 +153,7 @@ export default function AdminBookingsPage() {
     setBPrice("");
     setBDeposit("");
     setBDesc("");
+    setBInspiration(false);
     setShowNewBooking(true);
   }, [searchParams]);
 
@@ -234,6 +239,7 @@ export default function AdminBookingsPage() {
           priceCents: eurToCents(bPrice),
           depositCents: eurToCents(bDeposit),
           description: bDesc,
+          inspirationRequired: bInspiration,
         }),
       });
       setCreatedUrl(r.publicUrl);
@@ -473,6 +479,30 @@ export default function AdminBookingsPage() {
                 className="input"
               />
             </Field>
+            <div className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+              <div>
+                <p className="text-sm text-white">Images d&apos;inspiration</p>
+                <p className="mt-0.5 text-[11px] text-white/45">
+                  Si activé, le client doit envoyer au moins une image avant de payer
+                  l&apos;acompte ou la totalité.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={bInspiration}
+                onClick={() => setBInspiration((v) => !v)}
+                className={`relative h-7 w-12 shrink-0 rounded-full transition ${
+                  bInspiration ? "bg-pss-pink" : "bg-white/15"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition ${
+                    bInspiration ? "left-[22px]" : "left-0.5"
+                  }`}
+                />
+              </button>
+            </div>
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
@@ -571,6 +601,36 @@ export default function AdminBookingsPage() {
                   <p className="mt-1 text-sm text-white/75">{detailBooking.description}</p>
                 </div>
               )}
+              <div className="mt-5">
+                <p className="text-xs uppercase tracking-[0.18em] text-white/45">
+                  Images d&apos;inspiration
+                </p>
+                {!detailBooking.inspirationRequired ? (
+                  <p className="mt-2 text-sm text-white/45">Option désactivée pour ce RDV.</p>
+                ) : (detailBooking.inspirationImages?.length ?? 0) === 0 ? (
+                  <p className="mt-2 text-sm text-amber-200/80">
+                    En attente — aucune image envoyée par le client.
+                  </p>
+                ) : (
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    {detailBooking.inspirationImages!.map((img) => (
+                      <button
+                        key={img.id}
+                        type="button"
+                        onClick={() => setInspLightbox(img)}
+                        className="group relative aspect-square overflow-hidden rounded-lg border border-white/10 bg-black/40"
+                        title={img.originalName || "Voir l'image"}
+                      >
+                        <img
+                          src={img.thumbUrl}
+                          alt={img.originalName || "Inspiration"}
+                          className="h-full w-full object-cover transition group-hover:scale-105"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="space-y-4">
@@ -916,6 +976,30 @@ export default function AdminBookingsPage() {
               </>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Inspiration lightbox — version haute qualité (pas la miniature) */}
+      {inspLightbox && (
+        <div
+          className="fixed inset-0 z-[170] flex items-center justify-center bg-black/90 px-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setInspLightbox(null)}
+        >
+          <button
+            type="button"
+            className="absolute right-4 top-4 rounded-lg border border-white/20 px-3 py-1.5 text-xs uppercase tracking-[0.14em] text-white/80 hover:bg-white/10"
+            onClick={() => setInspLightbox(null)}
+          >
+            Fermer
+          </button>
+          <img
+            src={inspLightbox.fullUrl}
+            alt={inspLightbox.originalName || "Inspiration"}
+            className="max-h-[90vh] max-w-full object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
 

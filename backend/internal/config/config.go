@@ -36,6 +36,8 @@ type Config struct {
 	GoogleCalendarID string
 	// GoogleReviewURL : lien direct vers la fiche Google pour laisser un avis
 	GoogleReviewURL string
+	// FilesRoot : dossier local (monté sur le VPS) pour les images d'inspiration
+	FilesRoot string
 }
 
 func loadEnvFiles() {
@@ -136,6 +138,16 @@ func Load() (*Config, error) {
 		}
 	}
 
+	filesRoot := strings.TrimSpace(os.Getenv("FILES_ROOT"))
+	if filesRoot == "" {
+		// Défaut local : <repo>/files (depuis backend/) ou /app/files en Docker
+		if _, err := os.Stat("/app/files"); err == nil {
+			filesRoot = "/app/files"
+		} else {
+			filesRoot = filepath.Join("..", "files")
+		}
+	}
+
 	return &Config{
 		Port:                port,
 		MongoURI:            mongoURI,
@@ -156,5 +168,6 @@ func Load() (*Config, error) {
 		GoogleCalendarRefreshToken: strings.TrimSpace(os.Getenv("GOOGLE_CALENDAR_REFRESH_TOKEN")),
 		GoogleCalendarID:           strings.TrimSpace(os.Getenv("GOOGLE_CALENDAR_ID")),
 		GoogleReviewURL:            strings.TrimSpace(os.Getenv("GOOGLE_REVIEW_URL")),
+		FilesRoot:                  filesRoot,
 	}, nil
 }

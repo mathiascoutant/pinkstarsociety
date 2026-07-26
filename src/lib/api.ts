@@ -5,7 +5,11 @@ export async function api<T>(
   init: RequestInit = {},
 ): Promise<T> {
   const headers = new Headers(init.headers);
-  headers.set("Content-Type", "application/json");
+  const isFormData =
+    typeof FormData !== "undefined" && init.body instanceof FormData;
+  if (!isFormData && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
   const t = getToken();
   if (t) headers.set("Authorization", `Bearer ${t}`);
   const res = await fetch(`/api${path}`, { ...init, headers });

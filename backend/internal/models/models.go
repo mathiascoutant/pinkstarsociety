@@ -49,6 +49,20 @@ type LoyaltyCode struct {
 	UpdatedAt  time.Time          `json:"updatedAt" bson:"updated_at"`
 }
 
+// InspirationImage : métadonnées d'une image d'inspiration liée à une réservation.
+// Avant paiement : FullData/ThumbData en Mongo uniquement (pas de fichier sur disque).
+// Après paiement : écrits dans FILES_ROOT, binaires Mongo vidés.
+type InspirationImage struct {
+	ID           string    `json:"id" bson:"id"`
+	OriginalName string    `json:"originalName" bson:"original_name"`
+	ContentType  string    `json:"contentType" bson:"content_type"`
+	FullPath     string    `json:"-" bson:"full_path,omitempty"`
+	ThumbPath    string    `json:"-" bson:"thumb_path,omitempty"`
+	FullData     []byte    `json:"-" bson:"full_data,omitempty"`
+	ThumbData    []byte    `json:"-" bson:"thumb_data,omitempty"`
+	CreatedAt    time.Time `json:"createdAt" bson:"created_at"`
+}
+
 // PaymentStatus: pending | deposit_paid | paid
 // VisitStatus: pending_validation | in_progress | completed (vide si pas de client lié)
 type Booking struct {
@@ -62,6 +76,8 @@ type Booking struct {
 	PriceCents            int64              `json:"priceCents" bson:"price_cents"`
 	DepositCents          int64              `json:"depositCents" bson:"deposit_cents"`
 	Description           string             `json:"description" bson:"description"`
+	InspirationRequired   bool               `json:"inspirationRequired" bson:"inspiration_required"`
+	InspirationImages     []InspirationImage `json:"inspirationImages,omitempty" bson:"inspiration_images,omitempty"`
 	PaymentStatus         string             `json:"paymentStatus" bson:"payment_status"`
 	BalancePaidMethod     string             `json:"balancePaidMethod,omitempty" bson:"balance_paid_method,omitempty"` // cash | bank_transfer (solde réglé hors site)
 	ClientUserID          primitive.ObjectID `json:"clientUserId,omitempty" bson:"client_user_id,omitempty"`

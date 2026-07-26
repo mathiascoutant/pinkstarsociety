@@ -23,8 +23,12 @@ services:
       - .env
     environment:
       PORT: "8080"
+      FILES_ROOT: /app/files
       # Déjà défini dans l’image ; tu peux le laisser ou forcer :
       # STATIC_ROOT: /app/dist
+    volumes:
+      # Images d'inspiration (acompte / totalité) — dossier hôte VPS
+      - ./files:/app/files
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/health"]
       interval: 30s

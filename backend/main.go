@@ -50,6 +50,7 @@ func main() {
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
+	r.MaxMultipartMemory = 32 << 20 // 32 MiB
 
 	api := r.Group("/api")
 
@@ -89,6 +90,7 @@ func main() {
 	admin.POST("/bookings/:id/reschedule", h.AdminRescheduleBooking)
 	admin.POST("/bookings/:id/verify-arrival", h.AdminVerifyClientArrival)
 	admin.POST("/bookings/:id/complete-service", h.AdminCompleteService)
+	admin.GET("/bookings/:id/inspiration-images/:imageId", h.GetAdminInspirationImage)
 
 	admin.GET("/availability/:year/:month", h.AdminGetAvailability)
 	admin.PUT("/availability/:year/:month", h.AdminPutAvailability)
@@ -102,6 +104,9 @@ func main() {
 	pub.GET("/bookings/:token/facture.pdf", h.DownloadInvoice)
 	pub.GET("/bookings/:token/agenda.ics", h.CalendarICS)
 	pub.GET("/bookings/:token/qr.png", h.GetPublicBookingQR)
+	pub.POST("/bookings/:token/inspiration-images", h.UploadPublicInspirationImages)
+	pub.DELETE("/bookings/:token/inspiration-images/:imageId", h.DeletePublicInspirationImage)
+	pub.GET("/bookings/:token/inspiration-images/:imageId", h.GetPublicInspirationImage)
 	pub.GET("/availability/:year/:month", h.GetPublicAvailability)
 
 	r.POST("/api/stripe/webhook", h.StripeWebhook)

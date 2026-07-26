@@ -18,13 +18,14 @@ import (
 )
 
 type createBookingBody struct {
-	ServiceTypeID string `json:"serviceTypeId" binding:"required"`
-	Date          string `json:"date" binding:"required"`
-	Time          string `json:"time" binding:"required"`
-	EndTime       string `json:"endTime"`
-	PriceCents    int64  `json:"priceCents" binding:"required"`
-	DepositCents  int64  `json:"depositCents" binding:"required"`
-	Description   string `json:"description"`
+	ServiceTypeID         string `json:"serviceTypeId" binding:"required"`
+	Date                  string `json:"date" binding:"required"`
+	Time                  string `json:"time" binding:"required"`
+	EndTime               string `json:"endTime"`
+	PriceCents            int64  `json:"priceCents" binding:"required"`
+	DepositCents          int64  `json:"depositCents" binding:"required"`
+	Description           string `json:"description"`
+	InspirationRequired   *bool  `json:"inspirationRequired"`
 }
 
 func bookingSummaryPeriodRange(period string) (fromDate string, toDate string) {
@@ -209,20 +210,25 @@ func (h *Handlers) AdminCreateBooking(c *gin.Context) {
 	uidHex := middleware.UserID(c)
 	adminID, _ := primitive.ObjectIDFromHex(uidHex)
 	now := time.Now().UTC()
+	inspRequired := false
+	if body.InspirationRequired != nil {
+		inspRequired = *body.InspirationRequired
+	}
 	b := models.Booking{
-		PublicToken:     strings.ReplaceAll(uuid.NewString(), "-", ""),
-		ServiceTypeID:   stID,
-		ServiceTypeName: st.Name,
-		Date:            strings.TrimSpace(body.Date),
-		Time:            strings.TrimSpace(body.Time),
-		EndTime:         strings.TrimSpace(body.EndTime),
-		PriceCents:      body.PriceCents,
-		DepositCents:    body.DepositCents,
-		Description:     strings.TrimSpace(body.Description),
-		PaymentStatus:   "pending",
-		CreatedByUserID: adminID,
-		CreatedAt:       now,
-		UpdatedAt:       now,
+		PublicToken:         strings.ReplaceAll(uuid.NewString(), "-", ""),
+		ServiceTypeID:       stID,
+		ServiceTypeName:     st.Name,
+		Date:                strings.TrimSpace(body.Date),
+		Time:                strings.TrimSpace(body.Time),
+		EndTime:             strings.TrimSpace(body.EndTime),
+		PriceCents:          body.PriceCents,
+		DepositCents:        body.DepositCents,
+		Description:         strings.TrimSpace(body.Description),
+		InspirationRequired: inspRequired,
+		PaymentStatus:       "pending",
+		CreatedByUserID:     adminID,
+		CreatedAt:           now,
+		UpdatedAt:           now,
 	}
 	res, err := h.DB.Collection("bookings").InsertOne(ctx, b)
 	if err != nil {
@@ -336,6 +342,9 @@ func (h *Handlers) AdminPatchBooking(c *gin.Context) {
 		"description":       strings.TrimSpace(body.Description),
 		"updated_at":        time.Now().UTC(),
 	}
+	if body.InspirationRequired != nil {
+		set["inspiration_required"] = *body.InspirationRequired
+	}
 	res, err := h.DB.Collection("bookings").UpdateOne(ctx, bson.M{"_id": oid}, bson.M{"$set": set})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "mise à jour impossible"})
@@ -438,6 +447,9 @@ func (h *Handlers) AdminDeleteBooking(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "réservation introuvable"})
 		return
 	}
+	if h.Files != nil {
+		_ = h.Files.RemoveBooking(oid.Hex())
+	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
@@ -468,23 +480,25 @@ func visitLabelForPublicPage(b models.Booking) string {
 
 func bookingToJSON(b models.Booking) gin.H {
 	out := gin.H{
-		"id":              b.ID.Hex(),
-		"publicToken":     b.PublicToken,
-		"publicUrl":       "", // filled by caller if needed
-		"serviceTypeId":   b.ServiceTypeID.Hex(),
-		"serviceTypeName": b.ServiceTypeName,
-		"date":            b.Date,
-		"time":            b.Time,
-		"endTime":         b.EndTime,
-		"priceCents":      b.PriceCents,
-		"depositCents":    b.DepositCents,
-		"description":     b.Description,
-		"paymentStatus":   b.PaymentStatus,
-		"visitStatus":     b.VisitStatus,
-		"visitLabelFR":    visitDisplayLabel(b),
-		"visitPointsAwarded": b.VisitPointsAwarded,
-		"createdAt":       b.CreatedAt,
-		"updatedAt":       b.UpdatedAt,
+		"id":                   b.ID.Hex(),
+		"publicToken":          b.PublicToken,
+		"publicUrl":            "", // filled by caller if needed
+		"serviceTypeId":        b.ServiceTypeID.Hex(),
+		"serviceTypeName":      b.ServiceTypeName,
+		"date":                 b.Date,
+		"time":                 b.Time,
+		"endTime":              b.EndTime,
+		"priceCents":           b.PriceCents,
+		"depositCents":         b.DepositCents,
+		"description":          b.Description,
+		"inspirationRequired":  b.InspirationRequired,
+		"inspirationImages":    inspirationImagesPublicJSON(b.PublicToken, b.InspirationImages),
+		"paymentStatus":        b.PaymentStatus,
+		"visitStatus":          b.VisitStatus,
+		"visitLabelFR":         visitDisplayLabel(b),
+		"visitPointsAwarded":   b.VisitPointsAwarded,
+		"createdAt":            b.CreatedAt,
+		"updatedAt":            b.UpdatedAt,
 	}
 	if !b.ClientUserID.IsZero() {
 		out["clientUserId"] = b.ClientUserID.Hex()

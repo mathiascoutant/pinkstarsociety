@@ -36,6 +36,7 @@ func (h *Handlers) GetPublicBooking(c *gin.Context) {
 	// le créneau horaire, l'offre n'est plus valable — premier validé, premier servi.
 	slotTaken := false
 	if b.PaymentStatus == "pending" {
+		h.pullUnpaidInspirationOffDisk(ctx, &b)
 		slotTaken = h.hasConfirmedOverlap(ctx, b)
 	}
 
@@ -108,21 +109,28 @@ func publicBookingResponse(b models.Booking) gin.H {
 	if remaining < 0 {
 		remaining = 0
 	}
+	inspCount := len(b.InspirationImages)
+	inspReady := !b.InspirationRequired || inspCount > 0
+	canPayFirst := b.PaymentStatus == "pending" && inspReady
 	out := gin.H{
-		"serviceTypeName": b.ServiceTypeName,
-		"date":            b.Date,
-		"time":            b.Time,
-		"priceCents":      b.PriceCents,
-		"depositCents":    b.DepositCents,
-		"remainingCents":  remaining,
-		"description":     b.Description,
-		"paymentStatus":   b.PaymentStatus,
-		"visitStatus":     b.VisitStatus,
-		"visitLabelFR":    visitLabelForPublicPage(b),
-		"canPayDeposit":   b.PaymentStatus == "pending",
-		"canPayFull":      b.PaymentStatus == "pending",
-		"canPayBalance":   b.PaymentStatus == "deposit_paid",
-		"paidLabel":       paymentLabel(b.PaymentStatus),
+		"serviceTypeName":         b.ServiceTypeName,
+		"date":                    b.Date,
+		"time":                    b.Time,
+		"priceCents":              b.PriceCents,
+		"depositCents":            b.DepositCents,
+		"remainingCents":          remaining,
+		"description":             b.Description,
+		"inspirationRequired":     b.InspirationRequired,
+		"inspirationImages":       inspirationImagesPublicJSON(b.PublicToken, b.InspirationImages),
+		"inspirationImagesCount":  inspCount,
+		"inspirationReady":        inspReady,
+		"paymentStatus":           b.PaymentStatus,
+		"visitStatus":             b.VisitStatus,
+		"visitLabelFR":            visitLabelForPublicPage(b),
+		"canPayDeposit":           canPayFirst,
+		"canPayFull":              canPayFirst,
+		"canPayBalance":           b.PaymentStatus == "deposit_paid",
+		"paidLabel":               paymentLabel(b.PaymentStatus),
 	}
 	if b.BalancePaidMethod != "" {
 		out["balancePaidMethod"] = b.BalancePaidMethod
@@ -230,11 +238,19 @@ func (h *Handlers) CreateCheckout(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "paiement total indisponible"})
 			return
 		}
+		if b.InspirationRequired && len(b.InspirationImages) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ajoute au moins une image d'inspiration avant de payer"})
+			return
+		}
 		amount = b.PriceCents
 		payKind = "full"
 	case "deposit":
 		if b.PaymentStatus != "pending" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "acompte indisponible"})
+			return
+		}
+		if b.InspirationRequired && len(b.InspirationImages) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ajoute au moins une image d'inspiration avant de payer"})
 			return
 		}
 		amount = b.DepositCents

@@ -37,6 +37,15 @@ export type LoyaltyCode = {
   isActive: boolean;
 };
 
+export type InspirationImage = {
+  id: string;
+  originalName?: string;
+  contentType?: string;
+  thumbUrl: string;
+  fullUrl: string;
+  createdAt?: string;
+};
+
 export type Booking = {
   id: string;
   publicToken: string;
@@ -48,6 +57,8 @@ export type Booking = {
   priceCents: number;
   depositCents: number;
   description: string;
+  inspirationRequired?: boolean;
+  inspirationImages?: InspirationImage[];
   paymentStatus: string;
   clientUserId?: string;
   clientName?: string;

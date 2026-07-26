@@ -164,6 +164,13 @@ func (h *Handlers) applyPaidCheckoutSession(ctx context.Context, sess *stripe.Ch
 	if res.MatchedCount == 0 {
 		return nil
 	}
+	// Après acompte / totalité : écrire les images d'inspi sur disque (pas avant).
+	if payKind == "deposit" || payKind == "full" {
+		var fresh models.Booking
+		if err := h.DB.Collection("bookings").FindOne(ctx, bson.M{"_id": b.ID}).Decode(&fresh); err == nil {
+			h.persistInspirationImagesToDisk(ctx, &fresh)
+		}
+	}
 	to := strings.TrimSpace(customerEmail)
 	if to == "" {
 		to = strings.TrimSpace(b.CustomerEmail)
