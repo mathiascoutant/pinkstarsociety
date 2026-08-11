@@ -97,8 +97,13 @@ export type BookingSummaryService = {
   details: BookingSummaryDetail[];
 };
 
+export type PeriodMode = "day" | "week" | "month";
+
+/** Période analysée : un mode + une date (ISO) contenue dans cette période. */
+export type RevenuePeriod = { mode: PeriodMode; anchor: string };
+
 export type RevenueAnalytics = {
-  monthLabel: string;
+  periodLabel: string;
   totalBookings: number;
   totalRevenueCents: number;
   collectedCents: number;
@@ -173,6 +178,54 @@ export function shiftMonth(year: number, month: number, delta: number) {
   return { year: d.getFullYear(), month: d.getMonth() };
 }
 
+export const PERIOD_MODE_LABELS: Record<PeriodMode, string> = {
+  day: "Jour",
+  week: "Semaine",
+  month: "Mois",
+};
+
+/** Bornes inclusives (ISO) de la période contenant l'ancre. */
+export function periodRange(p: RevenuePeriod): { start: string; end: string } {
+  if (p.mode === "day") return { start: p.anchor, end: p.anchor };
+  const d = new Date(p.anchor + "T00:00:00");
+  if (p.mode === "week") {
+    const start = shiftDate(p.anchor, -((d.getDay() + 6) % 7));
+    return { start, end: shiftDate(start, 6) };
+  }
+  const year = d.getFullYear();
+  const month = d.getMonth();
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const mm = String(month + 1).padStart(2, "0");
+  return { start: `${year}-${mm}-01`, end: `${year}-${mm}-${String(lastDay).padStart(2, "0")}` };
+}
+
+export function shiftPeriod(p: RevenuePeriod, delta: number): RevenuePeriod {
+  if (p.mode === "day") return { ...p, anchor: shiftDate(p.anchor, delta) };
+  if (p.mode === "week") return { ...p, anchor: shiftDate(p.anchor, delta * 7) };
+  const d = new Date(p.anchor + "T00:00:00");
+  const m = shiftMonth(d.getFullYear(), d.getMonth(), delta);
+  return { ...p, anchor: `${m.year}-${String(m.month + 1).padStart(2, "0")}-01` };
+}
+
+export function formatPeriodLabel(p: RevenuePeriod): string {
+  const { start, end } = periodRange(p);
+  const s = new Date(start + "T00:00:00");
+  if (p.mode === "day") {
+    return s.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+  }
+  if (p.mode === "week") {
+    const e = new Date(end + "T00:00:00");
+    const sameMonth = s.getMonth() === e.getMonth();
+    const startLabel = s.toLocaleDateString(
+      "fr-FR",
+      sameMonth ? { day: "numeric" } : { day: "numeric", month: "short" },
+    );
+    const endLabel = e.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+    return `${startLabel} – ${endLabel}`;
+  }
+  return s.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+}
+
 /** Montant réellement encaissé pour une réservation (total payé ou acompte). */
 export function bookingCollectedCents(b: Booking): number {
   if (b.paymentStatus === "paid") return b.priceCents;
@@ -182,13 +235,10 @@ export function bookingCollectedCents(b: Booking): number {
 
 export function computeRevenueAnalytics(
   bookings: Booking[],
-  year: number,
-  month: number,
+  period: RevenuePeriod,
 ): RevenueAnalytics {
-  const monthBookings = bookings.filter((b) => {
-    const d = new Date(b.date + "T00:00:00");
-    return d.getFullYear() === year && d.getMonth() === month;
-  });
+  const { start, end } = periodRange(period);
+  const periodBookings = bookings.filter((b) => b.date >= start && b.date <= end);
 
   let collectedCents = 0;
   let pendingCents = 0;
@@ -203,7 +253,7 @@ export function computeRevenueAnalytics(
   const hourCounts = new Map<string, number>();
   const serviceMap = new Map<string, { count: number; revenueCents: number }>();
 
-  for (const b of monthBookings) {
+  for (const b of periodBookings) {
     if (b.paymentStatus === "paid") {
       collectedCents += b.priceCents;
       if (!b.balancePaidMethod) paidFullOnline++;
@@ -232,14 +282,11 @@ export function computeRevenueAnalytics(
     serviceMap.set(b.serviceTypeName, svc);
   }
 
-  const totalRevenueCents = monthBookings.reduce((s, b) => s + b.priceCents, 0);
+  const totalRevenueCents = periodBookings.reduce((s, b) => s + b.priceCents, 0);
 
   return {
-    monthLabel: new Date(year, month, 1).toLocaleDateString("fr-FR", {
-      month: "long",
-      year: "numeric",
-    }),
-    totalBookings: monthBookings.length,
+    periodLabel: formatPeriodLabel(period),
+    totalBookings: periodBookings.length,
     totalRevenueCents,
     collectedCents,
     pendingCents,

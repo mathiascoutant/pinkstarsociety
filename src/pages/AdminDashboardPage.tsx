@@ -6,6 +6,9 @@ import {
   Booking,
   BookingRow,
   Icon,
+  PERIOD_MODE_LABELS,
+  PeriodMode,
+  RevenuePeriod,
   StatCard,
   bookingCollectedCents,
   computeRevenueAnalytics,
@@ -17,6 +20,7 @@ import {
   paymentStatusTone,
   shiftDate,
   shiftMonth,
+  shiftPeriod,
   todayISO,
 } from "../lib/adminShared";
 
@@ -42,10 +46,10 @@ export default function AdminDashboardPage() {
   const [selectedDate, setSelectedDate] = useState<string>(todayISO());
   const [showRevenue, setShowRevenue] = useState(false);
   const [showHours, setShowHours] = useState(false);
-  const [revenueMonth, setRevenueMonth] = useState(() => {
-    const d = new Date();
-    return { year: d.getFullYear(), month: d.getMonth() };
-  });
+  const [revenuePeriod, setRevenuePeriod] = useState<RevenuePeriod>(() => ({
+    mode: "month",
+    anchor: todayISO(),
+  }));
   const [hoursMonth, setHoursMonth] = useState(() => {
     const d = new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
@@ -124,8 +128,8 @@ export default function AdminDashboardPage() {
   }, [dayBookings]);
 
   const revenueAnalytics = useMemo(
-    () => computeRevenueAnalytics(bookings, revenueMonth.year, revenueMonth.month),
-    [bookings, revenueMonth],
+    () => computeRevenueAnalytics(bookings, revenuePeriod),
+    [bookings, revenuePeriod],
   );
 
   const hoursAnalytics = useMemo(
@@ -138,9 +142,12 @@ export default function AdminDashboardPage() {
       <RevenueDetailView
         openSidebar={openSidebar}
         analytics={revenueAnalytics}
+        period={revenuePeriod}
         onBack={() => setShowRevenue(false)}
-        onPrevMonth={() => setRevenueMonth((m) => shiftMonth(m.year, m.month, -1))}
-        onNextMonth={() => setRevenueMonth((m) => shiftMonth(m.year, m.month, 1))}
+        onModeChange={(mode) => setRevenuePeriod((p) => ({ ...p, mode }))}
+        onPrev={() => setRevenuePeriod((p) => shiftPeriod(p, -1))}
+        onNext={() => setRevenuePeriod((p) => shiftPeriod(p, 1))}
+        onReset={() => setRevenuePeriod((p) => ({ ...p, anchor: todayISO() }))}
       />
     );
   }
@@ -195,8 +202,7 @@ export default function AdminDashboardPage() {
             hint={`${stats.mtdBookingsCount} RDV · CA ${fmtEUR(stats.mtdRevenueCents)} · détail`}
             icon="euro"
             onClick={() => {
-              const d = new Date();
-              setRevenueMonth({ year: d.getFullYear(), month: d.getMonth() });
+              setRevenuePeriod({ mode: "month", anchor: todayISO() });
               setShowRevenue(true);
             }}
           />
@@ -348,15 +354,21 @@ export default function AdminDashboardPage() {
 function RevenueDetailView({
   openSidebar,
   analytics,
+  period,
   onBack,
-  onPrevMonth,
-  onNextMonth,
+  onModeChange,
+  onPrev,
+  onNext,
+  onReset,
 }: {
   openSidebar: () => void;
   analytics: RevenueAnalytics;
+  period: RevenuePeriod;
   onBack: () => void;
-  onPrevMonth: () => void;
-  onNextMonth: () => void;
+  onModeChange: (mode: PeriodMode) => void;
+  onPrev: () => void;
+  onNext: () => void;
+  onReset: () => void;
 }) {
   const totalPaidFull =
     analytics.paidFullOnline + analytics.paidFullCash + analytics.paidFullBank;
@@ -375,6 +387,14 @@ function RevenueDetailView({
       ? Math.round((analytics.collectedCents / analytics.totalRevenueCents) * 100)
       : 0;
 
+  const avgTicketCents =
+    analytics.totalBookings > 0
+      ? Math.round(analytics.totalRevenueCents / analytics.totalBookings)
+      : 0;
+
+  const periodWord =
+    period.mode === "day" ? "ce jour" : period.mode === "week" ? "cette semaine" : "ce mois";
+
   return (
     <>
       <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b border-white/10 bg-[#050507]/90 px-4 backdrop-blur md:px-8">
@@ -387,7 +407,11 @@ function RevenueDetailView({
             <Icon name="menu" />
           </button>
           <h1 className="truncate font-display text-base uppercase tracking-[0.14em] sm:text-lg">
-            CA du mois
+            {period.mode === "day"
+              ? "CA du jour"
+              : period.mode === "week"
+                ? "CA de la semaine"
+                : "CA du mois"}
           </h1>
         </div>
       </header>
@@ -402,24 +426,47 @@ function RevenueDetailView({
             <Icon name="chevronLeft" className="h-4 w-4" />
             Tableau de bord
           </button>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={onPrevMonth}
-              className="rounded-lg border border-white/10 p-2 text-white/70 transition hover:border-white/20 hover:text-white"
-            >
-              <Icon name="chevronLeft" className="h-4 w-4" />
-            </button>
-            <span className="min-w-[140px] text-center text-sm capitalize text-white">
-              {analytics.monthLabel}
-            </span>
-            <button
-              type="button"
-              onClick={onNextMonth}
-              className="rounded-lg border border-white/10 p-2 text-white/70 transition hover:border-white/20 hover:text-white"
-            >
-              <Icon name="chevronRight" className="h-4 w-4" />
-            </button>
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.02] p-1">
+              {(["day", "week", "month"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => onModeChange(mode)}
+                  className={`rounded-lg px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] transition sm:text-xs ${
+                    period.mode === mode
+                      ? "bg-pss-pink/15 text-pss-pink"
+                      : "text-white/60 hover:text-white"
+                  }`}
+                >
+                  {PERIOD_MODE_LABELS[mode]}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={onPrev}
+                className="rounded-lg border border-white/10 p-2 text-white/70 transition hover:border-white/20 hover:text-white"
+              >
+                <Icon name="chevronLeft" className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={onReset}
+                className="min-w-[140px] rounded-lg px-2 py-1.5 text-center text-sm capitalize text-white transition hover:text-pss-pink"
+                title="Revenir à la période en cours"
+              >
+                {analytics.periodLabel}
+              </button>
+              <button
+                type="button"
+                onClick={onNext}
+                className="rounded-lg border border-white/10 p-2 text-white/70 transition hover:border-white/20 hover:text-white"
+              >
+                <Icon name="chevronRight" className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -443,21 +490,30 @@ function RevenueDetailView({
             hint={`${analytics.pendingCount + analytics.depositOnlyCount} paiement(s)`}
             icon="clock"
           />
-          <StatCard
-            label="Jour le plus actif"
-            value={busiestDay.count > 0 ? busiestDay.label : "—"}
-            hint={busiestDay.count > 0 ? `${busiestDay.count} rendez-vous` : "aucune donnée"}
-            icon="calendar"
-          />
+          {period.mode === "day" ? (
+            <StatCard
+              label="Panier moyen"
+              value={fmtEUR(avgTicketCents)}
+              hint={analytics.totalBookings > 0 ? "par rendez-vous" : "aucune donnée"}
+              icon="chart"
+            />
+          ) : (
+            <StatCard
+              label="Jour le plus actif"
+              value={busiestDay.count > 0 ? busiestDay.label : "—"}
+              hint={busiestDay.count > 0 ? `${busiestDay.count} rendez-vous` : "aucune donnée"}
+              icon="calendar"
+            />
+          )}
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className={`grid gap-4 ${period.mode === "day" ? "" : "lg:grid-cols-2"}`}>
           <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
             <h2 className="font-display text-sm uppercase tracking-[0.14em] text-white">
               Totalité payée — mode de règlement
             </h2>
             <p className="mt-1 text-xs text-white/50">
-              {totalPaidFull} prestation(s) entièrement payée(s) ce mois
+              {totalPaidFull} prestation(s) entièrement payée(s) {periodWord}
             </p>
             {totalPaidFull === 0 ? (
               <p className="mt-6 text-sm text-white/55">
@@ -502,32 +558,34 @@ function RevenueDetailView({
             )}
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
-            <h2 className="font-display text-sm uppercase tracking-[0.14em] text-white">
-              Activité par jour de la semaine
-            </h2>
-            <p className="mt-1 text-xs text-white/50">Nombre de rendez-vous par jour</p>
-            {analytics.totalBookings === 0 ? (
-              <p className="mt-6 text-sm text-white/55">Aucun rendez-vous ce mois.</p>
-            ) : (
-              <div className="mt-5 space-y-3">
-                {analytics.byWeekday.map((d) => (
-                  <BarRow
-                    key={d.label}
-                    label={d.label}
-                    value={d.count}
-                    max={maxWeekdayCount}
-                    display={`${d.count} · ${fmtEUR(d.revenueCents)}`}
-                    color={
-                      d.count === busiestDay.count && d.count > 0
-                        ? "bg-pss-pink"
-                        : "bg-white/40"
-                    }
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+          {period.mode !== "day" && (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+              <h2 className="font-display text-sm uppercase tracking-[0.14em] text-white">
+                Activité par jour de la semaine
+              </h2>
+              <p className="mt-1 text-xs text-white/50">Nombre de rendez-vous par jour</p>
+              {analytics.totalBookings === 0 ? (
+                <p className="mt-6 text-sm text-white/55">Aucun rendez-vous {periodWord}.</p>
+              ) : (
+                <div className="mt-5 space-y-3">
+                  {analytics.byWeekday.map((d) => (
+                    <BarRow
+                      key={d.label}
+                      label={d.label}
+                      value={d.count}
+                      max={maxWeekdayCount}
+                      display={`${d.count} · ${fmtEUR(d.revenueCents)}`}
+                      color={
+                        d.count === busiestDay.count && d.count > 0
+                          ? "bg-pss-pink"
+                          : "bg-white/40"
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
