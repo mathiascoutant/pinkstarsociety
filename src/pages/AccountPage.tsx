@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
 import { useAuth } from "../context/AuthContext";
+import { useBodyScrollLock } from "../lib/useBodyScrollLock";
 import { useLenis } from "../lib/useLenis";
 import { api } from "../lib/api";
 
@@ -152,6 +153,7 @@ export default function AccountPage() {
 
   const [tab, setTab] = useState<"profile" | "security" | "danger">("profile");
   const [deleteOpen, setDeleteOpen] = useState(false);
+  useBodyScrollLock(deleteOpen);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");

@@ -359,7 +359,10 @@ func (h *Handlers) CalendarICS(c *gin.Context) {
 		return
 	}
 	ics := pdf.BuildICS(b)
+	// inline : sur iOS/Android le tap ouvre directement l'écran d'ajout du
+	// calendrier au lieu de télécharger le fichier dans Fichiers.
 	c.Header("Content-Type", "text/calendar; charset=utf-8")
-	c.Header("Content-Disposition", `attachment; filename="rendez-vous-pink-star.ics"`)
+	c.Header("Content-Disposition", `inline; filename="rendez-vous-pink-star.ics"`)
+	c.Header("Cache-Control", "no-store")
 	c.String(http.StatusOK, ics)
 }

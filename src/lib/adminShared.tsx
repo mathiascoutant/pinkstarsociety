@@ -1,6 +1,7 @@
 // Shared types, utility functions, and UI components for admin pages
 
 import { bookingDurationMinutes } from "./availability";
+import { useBodyScrollLock } from "./useBodyScrollLock";
 
 // ====== Types ======
 
@@ -537,6 +538,24 @@ export function Icon({ name, className = "h-5 w-5" }: { name: string; className?
       </>
     ),
     menu: <path d="M4 6h16M4 12h16M4 18h16" />,
+    copy: (
+      <>
+        <rect x="9" y="9" width="11" height="11" rx="2" />
+        <path d="M5 15V5a2 2 0 012-2h10" />
+      </>
+    ),
+    mail: (
+      <>
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <path d="M3 7l9 6 9-6" />
+      </>
+    ),
+    external: (
+      <>
+        <path d="M14 4h6v6M20 4l-8 8" />
+        <path d="M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5" />
+      </>
+    ),
   };
   return (
     <svg
@@ -566,6 +585,7 @@ export function Modal({
   onClose: () => void;
   wide?: boolean;
 }) {
+  useBodyScrollLock(true);
   return (
     <div
       className="fixed inset-0 z-[120] flex items-end justify-center bg-black/80 px-3 py-4 sm:items-center sm:px-4 sm:py-8"

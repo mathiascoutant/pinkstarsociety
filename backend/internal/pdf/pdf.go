@@ -3,6 +3,7 @@ package pdf
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -75,26 +76,47 @@ func truncate(s string, max int) string {
 	return string(r[:max-1]) + "."
 }
 
+// parseHM lit "HH:MM" et renvoie les minutes depuis minuit, ok=false si invalide.
+func parseHM(s string) (int, bool) {
+	parts := strings.Split(strings.TrimSpace(s), ":")
+	if len(parts) < 2 {
+		return 0, false
+	}
+	h, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+	if err != nil || h < 0 || h > 23 {
+		return 0, false
+	}
+	m, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err != nil || m < 0 || m > 59 {
+		return 0, false
+	}
+	return h*60 + m, true
+}
+
+func icsTime(dateCompact string, minutes int) string {
+	if minutes > 23*60+59 {
+		minutes = 23*60 + 59
+	}
+	return fmt.Sprintf("%sT%02d%02d00", dateCompact, minutes/60, minutes%60)
+}
+
 func BuildICS(b models.Booking) string {
 	dateCompact := strings.ReplaceAll(b.Date, "-", "")
-	t := strings.TrimSpace(b.Time)
-	parts := strings.Split(t, ":")
-	hh, mm := "12", "00"
-	if len(parts) >= 2 {
-		hh, mm = parts[0], parts[1]
+	start, ok := parseHM(b.Time)
+	if !ok {
+		start = 12 * 60
 	}
-	if len(hh) == 1 {
-		hh = "0" + hh
+	end, ok := parseHM(b.EndTime)
+	if !ok || end <= start {
+		end = start + 60
 	}
-	if len(mm) == 1 {
-		mm = "0" + mm
-	}
-	dtStart := dateCompact + "T" + hh + mm + "00"
 	stamp := time.Now().UTC().Format("20060102T150405") + "Z"
-	desc := strings.ReplaceAll(b.Description, "\n", "\\n")
-	desc = strings.ReplaceAll(desc, ",", "\\,")
-	return fmt.Sprintf("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Pink Star Society//FR\r\nCALSCALE:GREGORIAN\r\nBEGIN:VEVENT\r\nUID:%s@pinkstarsociety\r\nDTSTAMP:%s\r\nDTSTART:%s\r\nSUMMARY:%s\r\nDESCRIPTION:%s\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
-		b.PublicToken, stamp, dtStart, escapeICS(b.ServiceTypeName), escapeICS(desc))
+	return fmt.Sprintf("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Pink Star Society//FR\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\nBEGIN:VEVENT\r\nUID:%s@pinkstarsociety\r\nDTSTAMP:%s\r\nDTSTART:%s\r\nDTEND:%s\r\nSUMMARY:%s\r\nLOCATION:%s\r\nDESCRIPTION:%s\r\nSTATUS:CONFIRMED\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+		b.PublicToken, stamp,
+		icsTime(dateCompact, start), icsTime(dateCompact, end),
+		escapeICS("Pink Star Society - "+b.ServiceTypeName),
+		escapeICS("Pink Star Society, Bordeaux"),
+		escapeICS(b.Description))
 }
 
 func escapeICS(s string) string {

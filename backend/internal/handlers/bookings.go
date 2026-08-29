@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -331,15 +332,43 @@ func (h *Handlers) AdminPatchBooking(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "montants invalides"})
 		return
 	}
+
+	// État avant modification : sert au diff envoyé au client et au garde-fou
+	// sur les rendez-vous passés.
+	var existing models.Booking
+	if err := h.DB.Collection("bookings").FindOne(ctx, bson.M{"_id": oid}).Decode(&existing); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "réservation introuvable"})
+		return
+	}
+	if existing.Date < time.Now().UTC().Format("2006-01-02") {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "rendez-vous passé : modification impossible",
+		})
+		return
+	}
+
+	updated := existing
+	updated.ServiceTypeID = stID
+	updated.ServiceTypeName = st.Name
+	updated.Date = strings.TrimSpace(body.Date)
+	updated.Time = strings.TrimSpace(body.Time)
+	updated.EndTime = strings.TrimSpace(body.EndTime)
+	updated.PriceCents = body.PriceCents
+	updated.DepositCents = body.DepositCents
+	updated.Description = strings.TrimSpace(body.Description)
+	if body.InspirationRequired != nil {
+		updated.InspirationRequired = *body.InspirationRequired
+	}
+
 	set := bson.M{
-		"service_type_id":   stID,
-		"service_type_name": st.Name,
-		"date":              strings.TrimSpace(body.Date),
-		"time":              strings.TrimSpace(body.Time),
-		"end_time":          strings.TrimSpace(body.EndTime),
-		"price_cents":       body.PriceCents,
-		"deposit_cents":     body.DepositCents,
-		"description":       strings.TrimSpace(body.Description),
+		"service_type_id":   updated.ServiceTypeID,
+		"service_type_name": updated.ServiceTypeName,
+		"date":              updated.Date,
+		"time":              updated.Time,
+		"end_time":          updated.EndTime,
+		"price_cents":       updated.PriceCents,
+		"deposit_cents":     updated.DepositCents,
+		"description":       updated.Description,
 		"updated_at":        time.Now().UTC(),
 	}
 	if body.InspirationRequired != nil {
@@ -354,7 +383,83 @@ func (h *Handlers) AdminPatchBooking(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "réservation introuvable"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+
+	// Prévenir le client de ce qui a changé (best-effort, hors requête).
+	changes := bookingChanges(existing, updated)
+	notified := false
+	if len(changes) > 0 {
+		if to := h.bookingClientEmail(ctx, existing); to != "" {
+			notified = true
+			go func() {
+				if err := mail.SendBookingUpdateNotification(h.Config, to, updated, changes); err != nil {
+					log.Printf("booking update mail error: %v", err)
+				}
+			}()
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"ok":             true,
+		"changes":        len(changes),
+		"clientNotified": notified,
+	})
+}
+
+// bookingClientEmail : e-mail du client (visiteur ou compte lié), vide si aucun.
+func (h *Handlers) bookingClientEmail(ctx context.Context, b models.Booking) string {
+	if s := strings.TrimSpace(b.CustomerEmail); s != "" {
+		return s
+	}
+	if b.ClientUserID.IsZero() {
+		return ""
+	}
+	var u models.User
+	if err := h.DB.Collection("users").FindOne(ctx, bson.M{"_id": b.ClientUserID}).Decode(&u); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(u.Email)
+}
+
+func orDash(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return "—"
+	}
+	return strings.TrimSpace(s)
+}
+
+func eurLabel(cents int64) string {
+	return strings.Replace(fmt.Sprintf("%.2f €", float64(cents)/100), ".", ",", 1)
+}
+
+// bookingChanges liste les champs modifiés, formatés pour l'e-mail client.
+func bookingChanges(old, next models.Booking) []mail.BookingChange {
+	var out []mail.BookingChange
+	add := func(label, o, n string) {
+		if o != n {
+			out = append(out, mail.BookingChange{Label: label, Old: o, New: n})
+		}
+	}
+	add("Prestation", orDash(old.ServiceTypeName), orDash(next.ServiceTypeName))
+	add("Date", orDash(old.Date), orDash(next.Date))
+	add("Heure de début", orDash(old.Time), orDash(next.Time))
+	add("Heure de fin", orDash(old.EndTime), orDash(next.EndTime))
+	if old.PriceCents != next.PriceCents {
+		add("Montant total", eurLabel(old.PriceCents), eurLabel(next.PriceCents))
+	}
+	if old.DepositCents != next.DepositCents {
+		add("Acompte", eurLabel(old.DepositCents), eurLabel(next.DepositCents))
+	}
+	add("Description", orDash(old.Description), orDash(next.Description))
+	if old.InspirationRequired != next.InspirationRequired {
+		label := func(v bool) string {
+			if v {
+				return "Obligatoires avant paiement"
+			}
+			return "Non demandées"
+		}
+		add("Images d'inspiration", label(old.InspirationRequired), label(next.InspirationRequired))
+	}
+	return out
 }
 
 type rescheduleBookingBody struct {

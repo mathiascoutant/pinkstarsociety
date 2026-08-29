@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
 import { compressImageFile } from "../lib/compressImage";
+import { useBodyScrollLock } from "../lib/useBodyScrollLock";
 import { useAuth } from "../context/AuthContext";
 
 type InspirationImage = {
@@ -69,6 +71,9 @@ export default function ReservationPage() {
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadErr, setUploadErr] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const swiped = useRef(false);
 
   useEffect(() => {
     if (!token) return;
@@ -86,6 +91,48 @@ export default function ReservationPage() {
       cancelled = true;
     };
   }, [token]);
+
+  useBodyScrollLock(lightboxIndex !== null || authModal || guestModal);
+
+  const lightboxCount = data?.inspirationImages?.length ?? 0;
+
+  function stepLightbox(delta: number) {
+    setLightboxIndex((i) =>
+      i === null || lightboxCount === 0
+        ? i
+        : (i + delta + lightboxCount) % lightboxCount,
+    );
+  }
+
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxIndex(null);
+      if (e.key === "ArrowRight") stepLightbox(1);
+      if (e.key === "ArrowLeft") stepLightbox(-1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightboxIndex, lightboxCount]);
+
+  function onTouchStart(e: React.TouchEvent) {
+    const t = e.changedTouches[0];
+    touchStart.current = { x: t.clientX, y: t.clientY };
+    swiped.current = false;
+  }
+
+  function onTouchEnd(e: React.TouchEvent) {
+    const start = touchStart.current;
+    touchStart.current = null;
+    if (!start || lightboxCount < 2) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    // Swipe horizontal franc uniquement : on ignore les gestes verticaux.
+    if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(dy)) return;
+    swiped.current = true;
+    stepLightbox(dx < 0 ? 1 : -1);
+  }
 
   async function checkout(
     kind: PayKind,
@@ -224,7 +271,8 @@ export default function ReservationPage() {
 
   if (err) {
     return (
-      <div className="min-h-screen bg-[#050507] px-5 py-20 text-white">
+      <div className="min-h-screen bg-[#050507] px-5 pb-20 pt-28 text-white md:pt-36">
+        <Navbar />
         <p className="text-red-400">{err}</p>
         <Link to="/" className="mt-6 inline-block text-pss-pink">
           Accueil
@@ -234,7 +282,8 @@ export default function ReservationPage() {
   }
   if (!data) {
     return (
-      <div className="min-h-screen bg-[#050507] px-5 py-20 text-white">
+      <div className="min-h-screen bg-[#050507] px-5 pb-20 pt-28 text-white md:pt-36">
+        <Navbar />
         Chargement…
       </div>
     );
@@ -244,21 +293,44 @@ export default function ReservationPage() {
     data.paymentStatus === "paid" || data.paymentStatus === "deposit_paid";
   const needsInspiration =
     !!data.inspirationRequired && data.paymentStatus === "pending";
-  const hasInspiration = (data.inspirationImages?.length ?? 0) > 0;
+  const images = data.inspirationImages ?? [];
+  const hasInspiration = images.length > 0;
   const payBlockedByInspo = needsInspiration && !hasInspiration;
+  // Les images ne sont modifiables qu'avant paiement (règle côté API).
+  const canEditInspiration = data.paymentStatus === "pending";
+  const showInspiration = needsInspiration || hasInspiration;
 
   return (
-    <div className="min-h-screen bg-[#050507] px-5 py-16 text-white">
+    <div className="min-h-screen bg-[#050507] px-5 pb-20 pt-28 text-white md:pt-36">
+      <Navbar />
       <div className="mx-auto max-w-lg">
-        <Link
-          to="/"
-          className="text-sm uppercase tracking-[0.2em] text-white/50 hover:text-pss-pink"
-        >
-          Accueil
-        </Link>
-        <h1 className="mt-8 font-display text-2xl uppercase tracking-[0.12em]">
-          Votre prestation
-        </h1>
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="font-display text-2xl uppercase tracking-[0.12em]">
+            Votre prestation
+          </h1>
+          {paid && token && (
+            <a
+              href={`/api/public/bookings/${token}/agenda.ics`}
+              title="Ajouter à l’agenda (.ics)"
+              aria-label="Ajouter à l’agenda (.ics)"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-white/15 text-white/70 transition hover:border-pss-pink/50 hover:text-pss-pink"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-4 w-4"
+                aria-hidden="true"
+              >
+                <rect x="3" y="5" width="18" height="16" rx="2" />
+                <path d="M3 10h18M8 3v4M16 3v4M12 13v5M9.5 15.5h5" />
+              </svg>
+            </a>
+          )}
+        </div>
         <p className="mt-2 text-sm text-pss-pink">{data.paidLabel}</p>
         {data.visitLabelFR ? (
           <p className={`mt-2 text-sm font-medium ${visitRowClass(data.visitLabelFR, data.visitStatus)}`}>
@@ -282,61 +354,84 @@ export default function ReservationPage() {
           )}
         </div>
 
-        {needsInspiration && (
+        {showInspiration && (
           <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-            <p className="text-xs uppercase tracking-[0.18em] text-white/45">
-              Images d&apos;inspiration
-            </p>
-            <p className="mt-2 text-sm leading-relaxed text-white/70">
-              Envoie au moins une image d&apos;inspiration avant de pouvoir payer
-              l&apos;acompte ou la totalité.
-            </p>
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="text-xs uppercase tracking-[0.18em] text-white/45">
+                Images d&apos;inspiration
+              </p>
+              {hasInspiration && (
+                <span className="text-xs text-white/40">
+                  {images.length} image{images.length > 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
+            {(needsInspiration || canEditInspiration) && (
+              <p className="mt-2 text-sm leading-relaxed text-white/70">
+                {needsInspiration
+                  ? "Envoie au moins une image d'inspiration avant de pouvoir payer l'acompte ou la totalité."
+                  : "Les images que tu as envoyées pour cette prestation."}
+              </p>
+            )}
 
-            {(data.inspirationImages?.length ?? 0) > 0 && (
-              <div className="mt-4 grid grid-cols-3 gap-2">
-                {data.inspirationImages!.map((img) => (
+            {hasInspiration && (
+              <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-5">
+                {images.map((img, i) => (
                   <div
                     key={img.id}
                     className="relative aspect-square overflow-hidden rounded-lg border border-white/10 bg-black/40"
                   >
-                    <img
-                      src={img.thumbUrl}
-                      alt={img.originalName || "Inspiration"}
-                      className="h-full w-full object-cover"
-                    />
                     <button
                       type="button"
-                      disabled={deletingId === img.id || uploadBusy}
-                      onClick={() => void removeImage(img.id)}
-                      className="absolute right-1 top-1 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-white/90 hover:bg-red-500/80 disabled:opacity-50"
+                      onClick={() => setLightboxIndex(i)}
+                      className="block h-full w-full"
+                      title="Voir en grand"
                     >
-                      {deletingId === img.id ? "…" : "✕"}
+                      <img
+                        src={img.thumbUrl}
+                        alt={img.originalName || "Inspiration"}
+                        className="h-full w-full object-cover transition hover:scale-[1.03]"
+                      />
                     </button>
+                    {canEditInspiration && (
+                      <button
+                        type="button"
+                        disabled={deletingId === img.id || uploadBusy}
+                        onClick={() => void removeImage(img.id)}
+                        className="absolute right-1 top-1 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-white/90 hover:bg-red-500/80 disabled:opacity-50"
+                      >
+                        {deletingId === img.id ? "…" : "✕"}
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
             )}
 
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              multiple
-              className="hidden"
-              onChange={(e) => void onFilesSelected(e.target.files)}
-            />
-            <button
-              type="button"
-              disabled={uploadBusy || (data.inspirationImages?.length ?? 0) >= 8}
-              onClick={() => fileRef.current?.click()}
-              className="mt-4 w-full rounded-xl border border-white/15 px-4 py-3 text-sm uppercase tracking-[0.14em] text-white/85 transition hover:border-pss-pink/50 disabled:opacity-50"
-            >
-              {uploadBusy
-                ? "Compression & envoi…"
-                : hasInspiration
-                  ? "Ajouter d'autres images"
-                  : "Ajouter des images"}
-            </button>
+            {canEditInspiration && (
+              <>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => void onFilesSelected(e.target.files)}
+                />
+                <button
+                  type="button"
+                  disabled={uploadBusy || images.length >= 8}
+                  onClick={() => fileRef.current?.click()}
+                  className="mt-4 w-full rounded-xl border border-white/15 px-4 py-3 text-sm uppercase tracking-[0.14em] text-white/85 transition hover:border-pss-pink/50 disabled:opacity-50"
+                >
+                  {uploadBusy
+                    ? "Compression & envoi…"
+                    : hasInspiration
+                      ? "Ajouter d'autres images"
+                      : "Ajouter des images"}
+                </button>
+              </>
+            )}
             {uploadErr && (
               <p className="mt-3 text-xs text-red-400">{uploadErr}</p>
             )}
@@ -429,20 +524,71 @@ export default function ReservationPage() {
           </div>
         )}
 
-        {paid && token && (
-          <div className="mt-10 space-y-3 border-t border-white/10 pt-8">
-            <p className="text-xs uppercase tracking-[0.2em] text-white/45">
-              Après paiement
-            </p>
-            <a
-              className="block rounded-xl border border-white/15 px-4 py-3 text-center text-sm hover:border-pss-pink/50"
-              href={`/api/public/bookings/${token}/agenda.ics`}
-            >
-              Ajouter à l’agenda (.ics)
-            </a>
-          </div>
-        )}
       </div>
+
+      {lightboxIndex !== null && images[lightboxIndex] && (
+        <div
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-black/90 p-4 touch-pan-y"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Image d'inspiration"
+          onClick={() => {
+            if (!swiped.current) setLightboxIndex(null);
+          }}
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+        >
+          <img
+            key={images[lightboxIndex].id}
+            src={images[lightboxIndex].fullUrl}
+            alt={images[lightboxIndex].originalName || "Inspiration"}
+            className="max-h-[70vh] w-auto max-w-[min(90vw,26rem)] select-none rounded-xl object-contain"
+            draggable={false}
+            onClick={(e) => e.stopPropagation()}
+          />
+
+          {images.length > 1 && (
+            <>
+              <button
+                type="button"
+                aria-label="Image précédente"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  stepLightbox(-1);
+                }}
+                className="absolute left-2 top-1/2 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-black/60 text-xl text-white/85 transition hover:border-pss-pink/50 hover:text-pss-pink sm:grid"
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                aria-label="Image suivante"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  stepLightbox(1);
+                }}
+                className="absolute right-2 top-1/2 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-black/60 text-xl text-white/85 transition hover:border-pss-pink/50 hover:text-pss-pink sm:grid"
+              >
+                ›
+              </button>
+              <span className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-xs text-white/70">
+                {lightboxIndex + 1} / {images.length}
+              </span>
+            </>
+          )}
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setLightboxIndex(null);
+            }}
+            className="absolute right-4 top-4 rounded-lg border border-white/20 bg-black/60 px-3 py-1.5 text-sm text-white/85 hover:border-pss-pink/50"
+          >
+            Fermer
+          </button>
+        </div>
+      )}
 
       {guestModal && (
         <div

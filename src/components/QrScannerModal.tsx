@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef } from "react";
 import { Html5Qrcode } from "html5-qrcode";
+import { useBodyScrollLock } from "../lib/useBodyScrollLock";
 
 type Props = {
   open: boolean;
@@ -22,6 +23,7 @@ async function safeStopAndClear(scanner: Html5Qrcode) {
 }
 
 export function QrScannerModal({ open, onClose, onResult }: Props) {
+  useBodyScrollLock(open);
   const uid = useId().replace(/:/g, "");
   const readerId = `pss-qr-${uid}`;
   const onResultRef = useRef(onResult);

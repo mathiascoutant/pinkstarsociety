@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
 import { safeInternalPath } from "../lib/routes";
+import { useBodyScrollLock } from "../lib/useBodyScrollLock";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -23,6 +24,7 @@ export default function LoginPage() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
+  useBodyScrollLock(forgotOpen);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotErr, setForgotErr] = useState<string | null>(null);
   const [forgotBusy, setForgotBusy] = useState(false);
