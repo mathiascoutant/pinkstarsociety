@@ -22,8 +22,10 @@ type recapMailData struct {
 	StatusFR        string
 	Description     string
 	ReservationURL  string
-	// payKind: full | deposit | balance (pour variantes du message)
+	// payKind: full | deposit | balance | partial (pour variantes du message)
 	PayKind string
+	// RemainingEUR : reste à régler sur place (paiement partiel uniquement).
+	RemainingEUR string
 }
 
 var recapHTMLTmpl = template.Must(template.New("recap").Parse(`
@@ -41,13 +43,20 @@ var recapHTMLTmpl = template.Must(template.New("recap").Parse(`
         <table role="presentation" width="100%" style="max-width:560px;border-radius:20px;overflow:hidden;border:1px solid rgba(255,43,177,0.25);background:#0c0c12;box-shadow:0 24px 64px rgba(0,0,0,0.45),0 0 40px rgba(255,43,177,0.08);">
           <tr>
             <td style="padding:28px 32px 20px;background:linear-gradient(135deg,rgba(255,43,177,0.18) 0%,transparent 55%);border-bottom:1px solid rgba(255,255,255,0.06);">
-              <p style="margin:0;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;color:rgba(255,255,255,0.45);">Pink Star Society</p>
+              <p style="margin:0;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;color:rgba(255,255,255,0.45);">PinkStar Society</p>
               {{if eq .PayKind "balance"}}
               <h1 style="margin:12px 0 0;font-size:26px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#fff;line-height:1.2;">
                 Totalité<br/><span style="background:linear-gradient(90deg,#fff,#ff8ecf,#ff2bb1);-webkit-background-clip:text;background-clip:text;color:transparent;">réglée</span>
               </h1>
               <p style="margin:14px 0 0;font-size:15px;line-height:1.55;color:rgba(255,255,255,0.72);">
                 Le <strong style="color:#fff;">solde</strong> vient d&apos;être payé : ta réservation est maintenant <strong style="color:#fff;">payée intégralement</strong>. Merci pour ta confiance — on a hâte de te voir !
+              </p>
+              {{else if eq .PayKind "partial"}}
+              <h1 style="margin:12px 0 0;font-size:26px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#fff;line-height:1.2;">
+                Paiement<br/><span style="background:linear-gradient(90deg,#fff,#ff8ecf,#ff2bb1);-webkit-background-clip:text;background-clip:text;color:transparent;">partiel reçu</span>
+              </h1>
+              <p style="margin:14px 0 0;font-size:15px;line-height:1.55;color:rgba(255,255,255,0.72);">
+                Ton paiement de <strong style="color:#fff;">{{.AmountEUR}} €</strong> est bien enregistré et ton rendez-vous est confirmé.{{if .RemainingEUR}} Il restera <strong style="color:#fff;">{{.RemainingEUR}} €</strong> à régler <strong style="color:#fff;">en espèces le jour du rendez-vous</strong> (ou en ligne avant, depuis ton lien réservation).{{end}} On a hâte de te voir !
               </p>
               {{else if eq .PayKind "deposit"}}
               <h1 style="margin:12px 0 0;font-size:26px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#fff;line-height:1.2;">
@@ -80,6 +89,7 @@ var recapHTMLTmpl = template.Must(template.New("recap").Parse(`
                       <tr><td style="padding:6px 0;color:rgba(255,255,255,0.45);">Montant payé</td><td align="right" style="padding:6px 0;font-weight:600;color:#fff;">{{.AmountEUR}} €</td></tr>
                       <tr><td style="padding:6px 0;color:rgba(255,255,255,0.45);">Type de paiement</td><td align="right" style="padding:6px 0;">{{.PayKindFR}}</td></tr>
                       <tr><td style="padding:6px 0;color:rgba(255,255,255,0.45);">Statut</td><td align="right" style="padding:6px 0;">{{.StatusFR}}</td></tr>
+                      {{if .RemainingEUR}}<tr><td style="padding:6px 0;color:rgba(255,255,255,0.45);">Reste à régler sur place</td><td align="right" style="padding:6px 0;font-weight:600;color:#ff8ecf;">{{.RemainingEUR}} €</td></tr>{{end}}
                     </table>
                     {{if .Description}}
                     <div style="margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.08);">
@@ -103,7 +113,7 @@ var recapHTMLTmpl = template.Must(template.New("recap").Parse(`
           <tr>
             <td style="padding:18px 32px 26px;border-top:1px solid rgba(255,255,255,0.06);">
               <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.35);text-align:center;">
-                Pink Star Society — message automatique, merci de ne pas répondre directement à cet e-mail.
+                PinkStar Society — message automatique, merci de ne pas répondre directement à cet e-mail.
               </p>
             </td>
           </tr>
@@ -118,11 +128,13 @@ var recapHTMLTmpl = template.Must(template.New("recap").Parse(`
 func recapSubject(payKind string) string {
 	switch payKind {
 	case "balance":
-		return "Pink Star Society — Totalité réglée"
+		return "PinkStar Society — Totalité réglée"
 	case "deposit":
-		return "Pink Star Society — Acompte reçu"
+		return "PinkStar Society — Acompte reçu"
+	case "partial":
+		return "PinkStar Society — Paiement partiel reçu"
 	default:
-		return "Pink Star Society — Rendez-vous confirmé"
+		return "PinkStar Society — Rendez-vous confirmé"
 	}
 }
 
@@ -140,16 +152,24 @@ func SendPaymentRecap(cfg *config.Config, to string, b models.Booking, payKind s
 
 	resURL := strings.TrimRight(cfg.FrontendURL, "/") + "/reservation/" + b.PublicToken
 
+	remainingStr := ""
+	if payKind == "partial" {
+		if r := b.RemainingCents(); r > 0 {
+			remainingStr = fmt.Sprintf("%.2f", float64(r)/100)
+		}
+	}
+
 	data := recapMailData{
 		ServiceTypeName: b.ServiceTypeName,
 		Date:            b.Date,
 		Time:            b.Time,
 		AmountEUR:       amountStr,
 		PayKindFR:       payFr,
-		StatusFR:        paymentStatusFR(b.PaymentStatus),
+		StatusFR:        recapStatusFR(b, payKind),
 		Description:     desc,
 		ReservationURL:  resURL,
 		PayKind:         payKind,
+		RemainingEUR:    remainingStr,
 	}
 
 	var htmlBuf bytes.Buffer
@@ -157,7 +177,7 @@ func SendPaymentRecap(cfg *config.Config, to string, b models.Booking, payKind s
 		return err
 	}
 
-	plain := plainRecapBody(b, payKind, payFr, amount, desc, resURL)
+	plain := plainRecapBody(b, payKind, payFr, amount, desc, resURL, remainingStr)
 	msg, err := buildMultipartMessage(cfg.EmailFrom, to, subject, plain, htmlBuf.String())
 	if err != nil {
 		return err
@@ -165,16 +185,24 @@ func SendPaymentRecap(cfg *config.Config, to string, b models.Booking, payKind s
 	return SendMessage(cfg, cfg.EmailFrom, to, msg)
 }
 
-func plainRecapBody(b models.Booking, payKind, payFr string, amount float64, desc, resURL string) string {
+func plainRecapBody(b models.Booking, payKind, payFr string, amount float64, desc, resURL, remainingStr string) string {
 	var sb strings.Builder
 	sb.WriteString("Bonjour,\n\n")
 	switch payKind {
 	case "balance":
 		sb.WriteString("Le solde vient d'être réglé : ta réservation est maintenant payée intégralement.\n\n")
+	case "partial":
+		sb.WriteString("Ton paiement partiel est bien enregistré et ton rendez-vous est confirmé.\n")
+		if remainingStr != "" {
+			sb.WriteString("Il restera ")
+			sb.WriteString(remainingStr)
+			sb.WriteString(" € à régler en espèces le jour du rendez-vous (ou en ligne avant, depuis ton lien réservation).\n")
+		}
+		sb.WriteString("\n")
 	case "deposit":
-		sb.WriteString("Ton acompte pour ton rendez-vous Pink Star Society est bien enregistré.\n\n")
+		sb.WriteString("Ton acompte pour ton rendez-vous PinkStar Society est bien enregistré.\n\n")
 	default:
-		sb.WriteString("Ton rendez-vous Pink Star Society est confirmé.\n\n")
+		sb.WriteString("Ton rendez-vous PinkStar Society est confirmé.\n\n")
 	}
 	sb.WriteString("Récapitulatif\n")
 	sb.WriteString("— Prestation : ")
@@ -188,8 +216,13 @@ func plainRecapBody(b models.Booking, payKind, payFr string, amount float64, des
 	sb.WriteString(" € (")
 	sb.WriteString(payFr)
 	sb.WriteString(")\n— Statut : ")
-	sb.WriteString(paymentStatusFR(b.PaymentStatus))
+	sb.WriteString(recapStatusFR(b, payKind))
 	sb.WriteString("\n")
+	if remainingStr != "" {
+		sb.WriteString("— Reste à régler sur place : ")
+		sb.WriteString(remainingStr)
+		sb.WriteString(" €\n")
+	}
 	if desc != "" {
 		sb.WriteString("— Note : ")
 		sb.WriteString(desc)
@@ -197,7 +230,7 @@ func plainRecapBody(b models.Booking, payKind, payFr string, amount float64, des
 	}
 	sb.WriteString("\nLien réservation : ")
 	sb.WriteString(resURL)
-	sb.WriteString("\n\n— Pink Star Society\n")
+	sb.WriteString("\n\n— PinkStar Society\n")
 	return sb.String()
 }
 
@@ -274,7 +307,7 @@ var rescheduleHTMLTmpl = template.Must(template.New("reschedule").Parse(`
         <table role="presentation" width="100%" style="max-width:560px;border-radius:20px;overflow:hidden;border:1px solid rgba(255,43,177,0.25);background:#0c0c12;box-shadow:0 24px 64px rgba(0,0,0,0.45),0 0 40px rgba(255,43,177,0.08);">
           <tr>
             <td style="padding:28px 32px 20px;background:linear-gradient(135deg,rgba(255,43,177,0.18) 0%,transparent 55%);border-bottom:1px solid rgba(255,255,255,0.06);">
-              <p style="margin:0;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;color:rgba(255,255,255,0.45);">Pink Star Society</p>
+              <p style="margin:0;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;color:rgba(255,255,255,0.45);">PinkStar Society</p>
               <h1 style="margin:12px 0 0;font-size:26px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#fff;line-height:1.2;">
                 Rendez-vous<br/><span style="background:linear-gradient(90deg,#fff,#ff8ecf,#ff2bb1);-webkit-background-clip:text;background-clip:text;color:transparent;">déplacé</span>
               </h1>
@@ -316,7 +349,7 @@ var rescheduleHTMLTmpl = template.Must(template.New("reschedule").Parse(`
           <tr>
             <td style="padding:18px 32px 26px;border-top:1px solid rgba(255,255,255,0.06);">
               <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.35);text-align:center;">
-                Pink Star Society — message automatique, merci de ne pas répondre directement à cet e-mail.
+                PinkStar Society — message automatique, merci de ne pas répondre directement à cet e-mail.
               </p>
             </td>
           </tr>
@@ -349,7 +382,7 @@ func SendRescheduleNotification(cfg *config.Config, to string, b models.Booking,
 		return err
 	}
 	plain := plainRescheduleBody(data)
-	subject := mime.QEncoding.Encode("utf-8", "Pink Star Society — Rendez-vous déplacé")
+	subject := mime.QEncoding.Encode("utf-8", "PinkStar Society — Rendez-vous déplacé")
 
 	var mimeBody bytes.Buffer
 	mp := multipart.NewWriter(&mimeBody)
@@ -394,7 +427,7 @@ func SendRescheduleNotification(cfg *config.Config, to string, b models.Booking,
 func plainRescheduleBody(d rescheduleMailData) string {
 	var sb strings.Builder
 	sb.WriteString("Bonjour,\n\n")
-	sb.WriteString("Ton rendez-vous Pink Star Society a été reprogrammé.\n\n")
+	sb.WriteString("Ton rendez-vous PinkStar Society a été reprogrammé.\n\n")
 	sb.WriteString("Nouvelle date\n")
 	sb.WriteString("— Prestation : ")
 	sb.WriteString(d.ServiceTypeName)
@@ -418,7 +451,7 @@ func plainRescheduleBody(d rescheduleMailData) string {
 	}
 	sb.WriteString("\nLien réservation : ")
 	sb.WriteString(d.ReservationURL)
-	sb.WriteString("\n\n— Pink Star Society\n")
+	sb.WriteString("\n\n— PinkStar Society\n")
 	return sb.String()
 }
 
@@ -436,6 +469,8 @@ func paymentKindFR(k string) string {
 		return "Acompte"
 	case "balance":
 		return "Solde"
+	case "partial":
+		return "Paiement partiel"
 	default:
 		return k
 	}
@@ -450,6 +485,15 @@ func paymentStatusFR(s string) string {
 	default:
 		return s
 	}
+}
+
+// recapStatusFR : « Acompte payé » n'a de sens que pour un vrai acompte ; après
+// un paiement partiel libre, on parle de paiement partiel.
+func recapStatusFR(b models.Booking, payKind string) string {
+	if payKind == "partial" && b.PaymentStatus == "deposit_paid" {
+		return "Partiellement payé"
+	}
+	return paymentStatusFR(b.PaymentStatus)
 }
 
 // ── Email de remerciement + demande d'avis Google ────────────────────────────
@@ -477,7 +521,7 @@ var reviewHTMLTmpl = template.Must(template.New("review").Parse(`
           <!-- Header -->
           <tr>
             <td style="padding:28px 32px 20px;background:linear-gradient(135deg,rgba(255,43,177,0.18) 0%,transparent 55%);border-bottom:1px solid rgba(255,255,255,0.06);">
-              <p style="margin:0;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;color:rgba(255,255,255,0.45);">Pink Star Society</p>
+              <p style="margin:0;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;color:rgba(255,255,255,0.45);">PinkStar Society</p>
               <h1 style="margin:12px 0 0;font-size:26px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#fff;line-height:1.2;">
                 Merci pour<br/><span style="background:linear-gradient(90deg,#fff,#ff8ecf,#ff2bb1);-webkit-background-clip:text;background-clip:text;color:transparent;">ta visite ✨</span>
               </h1>
@@ -524,7 +568,7 @@ var reviewHTMLTmpl = template.Must(template.New("review").Parse(`
           <tr>
             <td style="padding:18px 32px 26px;border-top:1px solid rgba(255,255,255,0.06);">
               <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.35);text-align:center;">
-                Pink Star Society — message automatique, merci de ne pas répondre directement à cet e-mail.
+                PinkStar Society — message automatique, merci de ne pas répondre directement à cet e-mail.
               </p>
             </td>
           </tr>
@@ -558,7 +602,7 @@ func SendReviewRequest(cfg *config.Config, to string, b models.Booking, clientFi
 	}
 
 	plain := plainReviewBody(data)
-	msg, err := buildMultipartMessage(cfg.EmailFrom, to, "Pink Star Society — Merci pour ta visite ✨", plain, htmlBuf.String())
+	msg, err := buildMultipartMessage(cfg.EmailFrom, to, "PinkStar Society — Merci pour ta visite ✨", plain, htmlBuf.String())
 	if err != nil {
 		return err
 	}
@@ -573,13 +617,13 @@ func plainReviewBody(d reviewMailData) string {
 		sb.WriteString(d.ClientFirstName)
 	}
 	sb.WriteString(",\n\n")
-	sb.WriteString("Merci pour ta visite chez Pink Star Society pour ton ")
+	sb.WriteString("Merci pour ta visite chez PinkStar Society pour ton ")
 	sb.WriteString(d.ServiceTypeName)
 	sb.WriteString(" du ")
 	sb.WriteString(d.Date)
 	sb.WriteString(".\n\n")
 	sb.WriteString("C'était un plaisir de te recevoir ! Si tu as passé un bon moment, laisse-nous un avis Google :\n")
 	sb.WriteString(d.GoogleReviewURL)
-	sb.WriteString("\n\nÀ très bientôt !\n— Pink Star Society\n")
+	sb.WriteString("\n\nÀ très bientôt !\n— PinkStar Society\n")
 	return sb.String()
 }

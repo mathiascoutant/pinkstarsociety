@@ -37,7 +37,7 @@ export default function Intro() {
               viewport={{ once: true }}
               transition={{ duration: 0.6 }}
             >
-              Pink Star Society, c'est un espace de création nail art à
+              PinkStar Society, c'est un espace de création nail art à
               Bordeaux, sur rendez-vous. Pose gel, dépose, créations à la
               main : chaque set est conçu à partir d'une inspiration
               partagée — pas de carte figée, on adapte.

@@ -16,7 +16,7 @@ func Invoice(b models.Booking, paymentStatus string) ([]byte, error) {
 	p := gofpdf.New("P", "mm", "A4", "")
 	p.AddPage()
 	p.SetFont("Arial", "B", 18)
-	p.CellFormat(0, 10, "Pink Star Society", "", 1, "L", false, 0, "")
+	p.CellFormat(0, 10, "PinkStar Society", "", 1, "L", false, 0, "")
 	p.SetFont("Arial", "", 11)
 	p.Ln(4)
 	p.CellFormat(0, 8, "Facture", "", 1, "L", false, 0, "")
@@ -31,7 +31,13 @@ func Invoice(b models.Booking, paymentStatus string) ([]byte, error) {
 	p.CellFormat(30, 8, "Montant", "1", 1, "R", false, 0, "")
 	amountLine := b.PriceCents
 	if paymentStatus == "deposit_paid" {
-		amountLine = b.DepositCents
+		// Montant réellement encaissé en ligne (acompte ou paiement partiel).
+		// Cas particulier : facture « variante acompte » d'une résa déjà soldée.
+		if b.PaymentStatus == "paid" {
+			amountLine = b.DepositCents
+		} else {
+			amountLine = b.PaidAmountCents()
+		}
 	}
 	p.SetFont("Arial", "", 10)
 	p.CellFormat(60, 8, truncate(b.ServiceTypeName, 40), "1", 0, "L", false, 0, "")
@@ -49,9 +55,18 @@ func Invoice(b models.Booking, paymentStatus string) ([]byte, error) {
 	case "paid":
 		val = "Regle (totalite)"
 	case "deposit_paid":
-		val = "Acompte regle"
+		if amountLine == b.DepositCents {
+			val = "Acompte regle"
+		} else {
+			val = "Paiement partiel regle"
+		}
 	}
 	p.CellFormat(0, 8, fmt.Sprintf("%s: %s", label, val), "", 1, "L", false, 0, "")
+	if paymentStatus == "deposit_paid" {
+		if rest := b.PriceCents - amountLine; rest > 0 {
+			p.CellFormat(0, 8, fmt.Sprintf("Reste a regler: %s", formatEUR(rest)), "", 1, "L", false, 0, "")
+		}
+	}
 	p.Ln(4)
 	p.SetFont("Arial", "I", 9)
 	p.MultiCell(0, 5, "Merci pour votre confiance.", "", "L", false)
@@ -111,11 +126,11 @@ func BuildICS(b models.Booking) string {
 		end = start + 60
 	}
 	stamp := time.Now().UTC().Format("20060102T150405") + "Z"
-	return fmt.Sprintf("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Pink Star Society//FR\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\nBEGIN:VEVENT\r\nUID:%s@pinkstarsociety\r\nDTSTAMP:%s\r\nDTSTART:%s\r\nDTEND:%s\r\nSUMMARY:%s\r\nLOCATION:%s\r\nDESCRIPTION:%s\r\nSTATUS:CONFIRMED\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+	return fmt.Sprintf("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//PinkStar Society//FR\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\nBEGIN:VEVENT\r\nUID:%s@pinkstarsociety\r\nDTSTAMP:%s\r\nDTSTART:%s\r\nDTEND:%s\r\nSUMMARY:%s\r\nLOCATION:%s\r\nDESCRIPTION:%s\r\nSTATUS:CONFIRMED\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
 		b.PublicToken, stamp,
 		icsTime(dateCompact, start), icsTime(dateCompact, end),
-		escapeICS("Pink Star Society - "+b.ServiceTypeName),
-		escapeICS("Pink Star Society, Bordeaux"),
+		escapeICS("PinkStar Society - "+b.ServiceTypeName),
+		escapeICS("PinkStar Society, Bordeaux"),
 		escapeICS(b.Description))
 }
 

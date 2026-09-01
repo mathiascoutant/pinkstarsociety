@@ -36,7 +36,7 @@ export default function Society() {
             <span className="chrome-pink">pas une mailing list.</span>
           </h2>
           <p className="mt-7 max-w-md text-base text-white/65">
-            La Pink Star Society est un cercle restreint. Pas de spam, pas de
+            La PinkStar Society est un cercle restreint. Pas de spam, pas de
             promo creuse — juste des pièces, des invitations, et un canal direct
             avec le studio.
           </p>

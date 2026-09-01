@@ -79,7 +79,13 @@ type Booking struct {
 	InspirationRequired   bool               `json:"inspirationRequired" bson:"inspiration_required"`
 	InspirationImages     []InspirationImage `json:"inspirationImages,omitempty" bson:"inspiration_images,omitempty"`
 	PaymentStatus         string             `json:"paymentStatus" bson:"payment_status"`
-	BalancePaidMethod     string             `json:"balancePaidMethod,omitempty" bson:"balance_paid_method,omitempty"` // cash | bank_transfer (solde réglé hors site)
+	// PaidCents : total réellement encaissé en ligne (Stripe). Permet les paiements
+	// partiels « une partie en carte, le reste en espèces le jour J ».
+	// 0 sur les anciennes réservations → voir PaidAmountCents().
+	PaidCents int64 `json:"paidCents" bson:"paid_cents,omitempty"`
+	// CashOnSiteIntent : le client a choisi de régler le reliquat sur place le jour J.
+	CashOnSiteIntent  bool   `json:"cashOnSiteIntent,omitempty" bson:"cash_on_site_intent,omitempty"`
+	BalancePaidMethod string `json:"balancePaidMethod,omitempty" bson:"balance_paid_method,omitempty"` // cash | bank_transfer (solde réglé hors site)
 	ClientUserID          primitive.ObjectID `json:"clientUserId,omitempty" bson:"client_user_id,omitempty"`
 	VisitStatus           string             `json:"visitStatus,omitempty" bson:"visit_status,omitempty"`
 	VisitPointsAwarded    bool               `json:"visitPointsAwarded" bson:"visit_points_awarded"`
@@ -101,6 +107,35 @@ type Booking struct {
 	// qui est multi-usage.
 	GuestQRToken string `json:"-" bson:"guest_qr_token,omitempty"`
 	GuestQRUsed  bool   `json:"-" bson:"guest_qr_used,omitempty"`
+}
+
+// PaidAmountCents renvoie le montant déjà encaissé en ligne. Les réservations
+// créées avant les paiements partiels n'ont pas de paid_cents : on le déduit du
+// statut (acompte = deposit_cents, payé = price_cents).
+func (b Booking) PaidAmountCents() int64 {
+	if b.PaidCents > 0 {
+		if b.PaidCents > b.PriceCents {
+			return b.PriceCents
+		}
+		return b.PaidCents
+	}
+	switch b.PaymentStatus {
+	case "paid":
+		return b.PriceCents
+	case "deposit_paid":
+		return b.DepositCents
+	default:
+		return 0
+	}
+}
+
+// RemainingCents : reste à régler (0 minimum).
+func (b Booking) RemainingCents() int64 {
+	r := b.PriceCents - b.PaidAmountCents()
+	if r < 0 {
+		return 0
+	}
+	return r
 }
 
 // SlotStatus: open | blocked

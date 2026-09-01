@@ -1,5 +1,5 @@
 /**
- * Pink Star Society — disponibilités (MongoDB via API).
+ * PinkStar Society — disponibilités (MongoDB via API).
  */
 
 import { api } from "./api";

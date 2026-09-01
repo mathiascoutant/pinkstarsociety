@@ -57,6 +57,11 @@ export type Booking = {
   endTime?: string;
   priceCents: number;
   depositCents: number;
+  /** Total encaissé en ligne (acompte, paiements partiels…). */
+  paidCents?: number;
+  remainingCents?: number;
+  /** Le client règle le reliquat en espèces le jour du RDV. */
+  cashOnSiteIntent?: boolean;
   description: string;
   inspirationRequired?: boolean;
   inspirationImages?: InspirationImage[];
@@ -84,6 +89,7 @@ export type BookingSummaryDetail = {
   clientName: string;
   priceCents: number;
   depositCents: number;
+  paidCents?: number;
   description?: string;
   publicToken: string;
 };
@@ -227,10 +233,18 @@ export function formatPeriodLabel(p: RevenuePeriod): string {
   return s.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
 }
 
-/** Montant réellement encaissé pour une réservation (total payé ou acompte). */
-export function bookingCollectedCents(b: Booking): number {
+/**
+ * Montant réellement encaissé pour une réservation. `paidCents` couvre les
+ * paiements partiels ; on retombe sur le statut pour les anciennes résas.
+ */
+export function bookingCollectedCents(b: {
+  paymentStatus: string;
+  priceCents: number;
+  depositCents: number;
+  paidCents?: number;
+}): number {
   if (b.paymentStatus === "paid") return b.priceCents;
-  if (b.paymentStatus === "deposit_paid") return b.depositCents;
+  if (b.paymentStatus === "deposit_paid") return b.paidCents || b.depositCents;
   return 0;
 }
 
@@ -261,8 +275,9 @@ export function computeRevenueAnalytics(
       else if (b.balancePaidMethod === "cash") paidFullCash++;
       else if (b.balancePaidMethod === "bank_transfer") paidFullBank++;
     } else if (b.paymentStatus === "deposit_paid") {
-      collectedCents += b.depositCents;
-      pendingCents += b.priceCents - b.depositCents;
+      const collected = bookingCollectedCents(b);
+      collectedCents += collected;
+      pendingCents += Math.max(0, b.priceCents - collected);
       depositOnlyCount++;
     } else {
       pendingCents += b.priceCents;
@@ -754,7 +769,11 @@ export function BookingRow({ b, onSelect }: { b: Booking; onSelect: (b: Booking)
         <div className="hidden flex-col items-end justify-center text-right sm:flex">
           <span className="font-display text-lg text-white">{fmtEUR(b.priceCents)}</span>
           <span className="text-[10px] uppercase tracking-[0.14em] text-white/45">
-            Acompte {fmtEUR(b.depositCents)}
+            {b.paymentStatus === "deposit_paid"
+              ? `Payé ${fmtEUR(bookingCollectedCents(b))} · reste ${fmtEUR(
+                  Math.max(0, b.priceCents - bookingCollectedCents(b)),
+                )}`
+              : `Acompte ${fmtEUR(b.depositCents)}`}
           </span>
         </div>
       </button>

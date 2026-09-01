@@ -454,7 +454,7 @@ function BrandStar() {
 
       <img
         src="/logo.png"
-        alt="Pink Star Society"
+        alt="PinkStar Society"
         loading="eager"
         decoding="async"
         style={{

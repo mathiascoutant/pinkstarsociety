@@ -120,7 +120,12 @@ func (h *Handlers) applyPaidCheckoutSession(ctx context.Context, sess *stripe.Ch
 		}
 		return nil
 	}
-	applyStripePayment(&b, payKind)
+	amountPaid := sess.AmountTotal
+	newPaid := applyStripePayment(&b, payKind, amountPaid)
+	b.PaidCents = newPaid
+	if payKind == "partial" {
+		b.CashOnSiteIntent = newPaid < b.PriceCents
+	}
 	customerEmail := sessionCustomerEmail(sess)
 	cid := b.ClientUserID
 	if uidHex := sess.Metadata["user_id"]; uidHex != "" {
@@ -130,7 +135,14 @@ func (h *Handlers) applyPaidCheckoutSession(ctx context.Context, sess *stripe.Ch
 	}
 	set := bson.M{
 		"payment_status": b.PaymentStatus,
+		"paid_cents":     newPaid,
 		"updated_at":     time.Now().UTC(),
+	}
+	// Paiement partiel : le reliquat sera réglé en espèces sur place le jour J.
+	if payKind == "partial" {
+		set["cash_on_site_intent"] = newPaid < b.PriceCents
+	} else if b.PaymentStatus == "paid" {
+		set["cash_on_site_intent"] = false
 	}
 	if !cid.IsZero() {
 		set["client_user_id"] = cid
@@ -165,7 +177,7 @@ func (h *Handlers) applyPaidCheckoutSession(ctx context.Context, sess *stripe.Ch
 		return nil
 	}
 	// Après acompte / totalité : écrire les images d'inspi sur disque (pas avant).
-	if payKind == "deposit" || payKind == "full" {
+	if payKind == "deposit" || payKind == "full" || payKind == "partial" {
 		var fresh models.Booking
 		if err := h.DB.Collection("bookings").FindOne(ctx, bson.M{"_id": b.ID}).Decode(&fresh); err == nil {
 			h.persistInspirationImagesToDisk(ctx, &fresh)
@@ -229,15 +241,28 @@ func (h *Handlers) applyPaidCheckoutSession(ctx context.Context, sess *stripe.Ch
 	return nil
 }
 
-func applyStripePayment(b *models.Booking, payKind string) {
+// applyStripePayment met à jour le statut de b et renvoie le total encaissé en
+// ligne après ce paiement. Les paiements partiels s'additionnent : le RDV n'est
+// « paid » que lorsque le cumul atteint le prix total.
+func applyStripePayment(b *models.Booking, payKind string, amountPaid int64) int64 {
+	paid := b.PaidAmountCents() + amountPaid
+	if paid > b.PriceCents {
+		paid = b.PriceCents
+	}
 	switch payKind {
-	case "full":
+	case "full", "balance":
 		b.PaymentStatus = "paid"
+		paid = b.PriceCents
 	case "deposit":
 		b.PaymentStatus = "deposit_paid"
-	case "balance":
-		b.PaymentStatus = "paid"
+	case "partial":
+		if paid >= b.PriceCents {
+			b.PaymentStatus = "paid"
+		} else {
+			b.PaymentStatus = "deposit_paid"
+		}
 	}
+	return paid
 }
 
 func (h *Handlers) StripeWebhook(c *gin.Context) {

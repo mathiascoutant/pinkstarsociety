@@ -17,6 +17,11 @@ type BookingDetail = {
   time: string;
   priceCents: number;
   depositCents: number;
+  /** Total encaissé en ligne (acompte, paiements partiels…). */
+  paidCents?: number;
+  remainingCents?: number;
+  /** Le reliquat sera réglé en espèces le jour du RDV. */
+  cashOnSiteIntent?: boolean;
   description: string;
   paymentStatus: string;
   visitStatus?: string;
@@ -183,9 +188,11 @@ export default function AccountBookingDetailPage() {
   }
 
   const pay = payMeta(b.paymentStatus);
+  const paid =
+    b.paidCents ?? (b.paymentStatus === "deposit_paid" ? b.depositCents : 0);
   const remaining =
     b.paymentStatus === "deposit_paid"
-      ? Math.max(0, b.priceCents - b.depositCents)
+      ? (b.remainingCents ?? Math.max(0, b.priceCents - paid))
       : null;
 
   return (
@@ -249,10 +256,10 @@ export default function AccountBookingDetailPage() {
             </div>
             <div className="rounded-xl border border-white/8 bg-black/30 px-4 py-4">
               <p className="text-[10px] uppercase tracking-[0.18em] text-white/40">
-                Acompte
+                {paid > 0 ? "Déjà payé" : "Acompte"}
               </p>
               <p className="mt-1 font-display text-2xl text-white/90 tabular-nums">
-                {fmtEUR(b.depositCents)}
+                {fmtEUR(paid > 0 ? paid : b.depositCents)}
               </p>
             </div>
           </div>
@@ -264,6 +271,11 @@ export default function AccountBookingDetailPage() {
               <p className="mt-1 font-display text-xl text-pss-pink tabular-nums">
                 {fmtEUR(remaining)}
               </p>
+              {b.cashOnSiteIntent ? (
+                <p className="mt-1 text-xs text-white/50">
+                  À régler en espèces le jour du rendez-vous.
+                </p>
+              ) : null}
             </div>
           ) : null}
         </DetailShell>

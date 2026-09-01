@@ -10,6 +10,7 @@ import {
   Icon,
   Modal,
   ServiceType,
+  bookingCollectedCents,
   canCompleteService,
   eurToCents,
   fmtEUR,
@@ -692,8 +693,9 @@ export default function AdminBookingsPage() {
               .map((s) => s?.trim())
               .filter(Boolean)
               .join(" ");
+            const collected = bookingCollectedCents(detailBooking);
             const remaining = Math.max(
-              detailBooking.priceCents - detailBooking.depositCents,
+              detailBooking.priceCents - collected,
               0,
             );
             return (
@@ -716,10 +718,10 @@ export default function AdminBookingsPage() {
                         {formatLongDate(detailBooking.date)}
                       </p>
                       <p className="mt-0.5 text-xs text-white/50 sm:hidden">
-                        {fmtEUR(detailBooking.priceCents)} · acompte{" "}
-                        {fmtEUR(detailBooking.depositCents)}
-                        {detailBooking.paymentStatus === "deposit_paid" &&
-                          ` · reste ${fmtEUR(remaining)}`}
+                        {fmtEUR(detailBooking.priceCents)} ·{" "}
+                        {detailBooking.paymentStatus === "deposit_paid"
+                          ? `payé ${fmtEUR(collected)} · reste ${fmtEUR(remaining)}`
+                          : `acompte ${fmtEUR(detailBooking.depositCents)}`}
                       </p>
                     </div>
                     <div className="hidden shrink-0 text-right sm:block">
@@ -727,9 +729,9 @@ export default function AdminBookingsPage() {
                         {fmtEUR(detailBooking.priceCents)}
                       </p>
                       <p className="text-[10px] uppercase tracking-[0.14em] text-white/45">
-                        Acompte {fmtEUR(detailBooking.depositCents)}
-                        {detailBooking.paymentStatus === "deposit_paid" &&
-                          ` · reste ${fmtEUR(remaining)}`}
+                        {detailBooking.paymentStatus === "deposit_paid"
+                          ? `Payé ${fmtEUR(collected)} · reste ${fmtEUR(remaining)}`
+                          : `Acompte ${fmtEUR(detailBooking.depositCents)}`}
                       </p>
                     </div>
                   </div>
@@ -749,6 +751,11 @@ export default function AdminBookingsPage() {
                     {detailBooking.balancePaidLabelFR && (
                       <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-white/60">
                         Solde : {detailBooking.balancePaidLabelFR}
+                      </span>
+                    )}
+                    {detailBooking.cashOnSiteIntent && remaining > 0 && (
+                      <span className="rounded-full border border-amber-300/30 bg-amber-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-amber-200/90">
+                        {fmtEUR(remaining)} en espèces le jour J
                       </span>
                     )}
                   </div>
@@ -1258,8 +1265,22 @@ export default function AdminBookingsPage() {
                   Règlement du solde
                 </h2>
                 <p className="mt-4 text-sm leading-relaxed text-white/75">
-                  Le paiement total n&apos;a pas été réglé en ligne. Comment le solde a-t-il été
-                  payé <strong className="text-white">sur place</strong> ?
+                  Il reste{" "}
+                  <strong className="text-white">
+                    {fmtEUR(
+                      Math.max(
+                        0,
+                        detailBooking.priceCents -
+                          bookingCollectedCents(detailBooking),
+                      ),
+                    )}
+                  </strong>{" "}
+                  non réglés en ligne
+                  {detailBooking.cashOnSiteIntent
+                    ? " (le client a prévu de payer en espèces)"
+                    : ""}
+                  . Comment le solde a-t-il été payé{" "}
+                  <strong className="text-white">sur place</strong> ?
                 </p>
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
                   <button

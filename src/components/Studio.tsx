@@ -34,7 +34,7 @@ export default function Studio() {
           </h2>
 
           <div className="mt-10 max-w-xl text-base leading-relaxed text-white/65">
-            Pink Star Society est un studio fermé sur rendez-vous. Trois
+            PinkStar Society est un studio fermé sur rendez-vous. Trois
             principes, aucune répétition, une obsession : la lumière qui se
             pose sur la finition.
           </div>

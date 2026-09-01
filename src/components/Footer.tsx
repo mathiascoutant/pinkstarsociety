@@ -71,7 +71,7 @@ export default function Footer() {
 
         {/* BOTTOM */}
         <div className="mx-auto mt-14 max-w-md border-t border-white/5 pt-6 text-center text-[11px] text-white/40">
-          © {new Date().getFullYear()} Pink Star Society — Tous droits
+          © {new Date().getFullYear()} PinkStar Society — Tous droits
           réservés.
         </div>
       </div>

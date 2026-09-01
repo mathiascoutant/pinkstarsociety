@@ -19,7 +19,13 @@ type PublicBooking = {
   time: string;
   priceCents: number;
   depositCents: number;
+  /** Total déjà encaissé en ligne (acompte, paiements partiels…). */
+  paidCents: number;
   remainingCents: number;
+  /** Montant minimum d'un paiement partiel en carte. */
+  minPartialCents: number;
+  /** Le client a choisi de régler le reliquat en espèces le jour J. */
+  cashOnSiteIntent?: boolean;
   description: string;
   inspirationRequired?: boolean;
   inspirationImages?: InspirationImage[];
@@ -31,18 +37,39 @@ type PublicBooking = {
   canPayDeposit: boolean;
   canPayFull: boolean;
   canPayBalance: boolean;
+  canPayPartial: boolean;
   paidLabel: string;
   /** true si la même demi-journée a déjà été réservée par quelqu'un d'autre. */
   slotTaken?: boolean;
 };
 
-type PayKind = "full" | "deposit" | "balance";
+type PayKind = "full" | "deposit" | "balance" | "partial";
 
 function fmtEUR(cents: number) {
   return new Intl.NumberFormat("fr-FR", {
     style: "currency",
     currency: "EUR",
   }).format(cents / 100);
+}
+
+/** "12,50" / "12.5" → 1250 centimes. null si la saisie n'est pas un montant. */
+function eurosInputToCents(raw: string): number | null {
+  const s = raw.trim().replace(",", ".").replace(/\s/g, "");
+  if (!/^\d+(\.\d{1,2})?$/.test(s)) return null;
+  return Math.round(parseFloat(s) * 100);
+}
+
+function centsToEurosInput(cents: number) {
+  return (cents / 100).toFixed(2).replace(/\.00$/, "");
+}
+
+/** Proposition par défaut : la moitié du reste dû, bornée au minimum autorisé. */
+function defaultPartialCents(d: {
+  remainingCents: number;
+  minPartialCents: number;
+}) {
+  const half = Math.round(d.remainingCents / 2 / 100) * 100;
+  return Math.min(Math.max(half, d.minPartialCents), d.remainingCents);
 }
 
 function visitRowClass(label?: string, status?: string) {
@@ -68,6 +95,10 @@ export default function ReservationPage() {
   const [guestEmail, setGuestEmail] = useState("");
   const [guestErr, setGuestErr] = useState<string | null>(null);
   const [pendingKind, setPendingKind] = useState<PayKind | null>(null);
+  const [pendingAmount, setPendingAmount] = useState<number | null>(null);
+  const [partialModal, setPartialModal] = useState(false);
+  const [partialEuros, setPartialEuros] = useState("");
+  const [partialErr, setPartialErr] = useState<string | null>(null);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadErr, setUploadErr] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -92,7 +123,9 @@ export default function ReservationPage() {
     };
   }, [token]);
 
-  useBodyScrollLock(lightboxIndex !== null || authModal || guestModal);
+  useBodyScrollLock(
+    lightboxIndex !== null || authModal || guestModal || partialModal,
+  );
 
   const lightboxCount = data?.inspirationImages?.length ?? 0;
 
@@ -136,12 +169,14 @@ export default function ReservationPage() {
 
   async function checkout(
     kind: PayKind,
+    amountCents: number | null,
     guest?: { firstName: string; lastName: string; email: string },
   ) {
     if (!token) return;
     setPayBusy(kind);
     try {
       const body: Record<string, unknown> = { kind };
+      if (kind === "partial" && amountCents != null) body.amountCents = amountCents;
       if (guest) body.guest = guest;
       const res = await api<{ url: string }>(
         `/public/bookings/${token}/checkout`,
@@ -155,21 +190,58 @@ export default function ReservationPage() {
     }
   }
 
-  function onPayClick(kind: PayKind) {
+  function onPayClick(kind: PayKind, amountCents: number | null = null) {
     if (
       data?.inspirationRequired &&
-      (kind === "deposit" || kind === "full") &&
-      !(data.inspirationImages?.length)
+      data.paymentStatus === "pending" &&
+      !data.inspirationImages?.length
     ) {
       setUploadErr("Ajoute au moins une image d'inspiration avant de payer.");
       return;
     }
     if (user) {
-      void checkout(kind);
+      void checkout(kind, amountCents);
       return;
     }
     setPendingKind(kind);
+    setPendingAmount(amountCents);
     setAuthModal(true);
+  }
+
+  /** Ouvre la saisie du montant à régler en carte (le reste en espèces le jour J). */
+  function openPartialModal() {
+    if (!data) return;
+    if (
+      data.inspirationRequired &&
+      data.paymentStatus === "pending" &&
+      !data.inspirationImages?.length
+    ) {
+      setUploadErr("Ajoute au moins une image d'inspiration avant de payer.");
+      return;
+    }
+    setPartialErr(null);
+    setPartialEuros(centsToEurosInput(defaultPartialCents(data)));
+    setPartialModal(true);
+  }
+
+  function submitPartial() {
+    if (!data) return;
+    const cents = eurosInputToCents(partialEuros);
+    if (cents == null) {
+      setPartialErr("Montant invalide.");
+      return;
+    }
+    if (cents < data.minPartialCents) {
+      setPartialErr(`Le montant minimum est de ${fmtEUR(data.minPartialCents)}.`);
+      return;
+    }
+    if (cents > data.remainingCents) {
+      setPartialErr(`Le montant maximum est de ${fmtEUR(data.remainingCents)}.`);
+      return;
+    }
+    setPartialModal(false);
+    setPartialErr(null);
+    onPayClick("partial", cents);
   }
 
   function goLogin() {
@@ -198,9 +270,11 @@ export default function ReservationPage() {
       return;
     }
     const k = pendingKind;
+    const amount = pendingAmount;
     setGuestModal(false);
     setPendingKind(null);
-    if (k) void checkout(k, { firstName: first, lastName: last, email });
+    setPendingAmount(null);
+    if (k) void checkout(k, amount, { firstName: first, lastName: last, email });
   }
 
   async function onFilesSelected(files: FileList | null) {
@@ -226,6 +300,10 @@ export default function ReservationPage() {
               inspirationReady: res.count > 0,
               canPayDeposit: prev.paymentStatus === "pending" && res.count > 0,
               canPayFull: prev.paymentStatus === "pending" && res.count > 0,
+              canPayPartial:
+                prev.paymentStatus === "pending" &&
+                res.count > 0 &&
+                prev.remainingCents > prev.minPartialCents,
             }
           : prev,
       );
@@ -259,6 +337,10 @@ export default function ReservationPage() {
               canPayFull:
                 prev.paymentStatus === "pending" &&
                 (!prev.inspirationRequired || res.count > 0),
+              canPayPartial:
+                prev.paymentStatus === "pending" &&
+                (!prev.inspirationRequired || res.count > 0) &&
+                prev.remainingCents > prev.minPartialCents,
             }
           : prev,
       );
@@ -269,17 +351,7 @@ export default function ReservationPage() {
     }
   }
 
-  if (err) {
-    return (
-      <div className="min-h-screen bg-[#050507] px-5 pb-20 pt-28 text-white md:pt-36">
-        <Navbar />
-        <p className="text-red-400">{err}</p>
-        <Link to="/" className="mt-6 inline-block text-pss-pink">
-          Accueil
-        </Link>
-      </div>
-    );
-  }
+  if (err) return <ReservationNotFound message={err} />;
   if (!data) {
     return (
       <div className="min-h-screen bg-[#050507] px-5 pb-20 pt-28 text-white md:pt-36">
@@ -344,6 +416,12 @@ export default function ReservationPage() {
           <Row label="Heure" value={data.time} />
           <Row label="Montant total" value={fmtEUR(data.priceCents)} />
           <Row label="Acompte" value={fmtEUR(data.depositCents)} />
+          {data.paidCents > 0 && (
+            <Row label="Déjà payé en ligne" value={fmtEUR(data.paidCents)} />
+          )}
+          {data.remainingCents > 0 && data.paymentStatus !== "pending" && (
+            <Row label="Reste à régler" value={fmtEUR(data.remainingCents)} />
+          )}
           {data.description && (
             <div>
               <p className="text-xs uppercase tracking-[0.18em] text-white/45">
@@ -462,7 +540,7 @@ export default function ReservationPage() {
                   cette offre.
                 </p>
                 <p className="mt-3 text-sm leading-relaxed text-white/70">
-                  Tu peux m&apos;envoyer un message en DM Instagram pour qu&apos;on te
+                  Tu peux m&apos;envoyer un message en DM Instagram pour que je te
                   propose un nouveau créneau.
                 </p>
                 <div className="mt-5 flex flex-wrap gap-2">
@@ -521,8 +599,40 @@ export default function ReservationPage() {
                   : `Payer le solde (${fmtEUR(data.remainingCents)})`}
               </button>
             )}
+            {data.canPayPartial && (
+              <button
+                type="button"
+                disabled={payBusy !== null || payBlockedByInspo}
+                onClick={openPartialModal}
+                className="mt-1 self-center text-xs text-white/40 underline decoration-white/20 underline-offset-4 transition hover:text-white/70 hover:decoration-white/40 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {payBusy === "partial"
+                  ? "Redirection…"
+                  : "Payer une partie en carte, le reste en espèces le jour J"}
+              </button>
+            )}
           </div>
         )}
+
+        {!data.slotTaken &&
+          data.cashOnSiteIntent &&
+          data.remainingCents > 0 &&
+          data.paymentStatus !== "paid" && (
+            <div className="mt-8 rounded-2xl border border-amber-300/25 bg-amber-400/[0.06] p-5">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-amber-200/80">
+                À prévoir le jour J
+              </p>
+              <p className="mt-2 text-sm leading-relaxed text-white/75">
+                Il reste{" "}
+                <span className="font-medium text-white">
+                  {fmtEUR(data.remainingCents)}
+                </span>{" "}
+                à régler <span className="font-medium text-white">en espèces</span>{" "}
+                sur place. Tu peux aussi les payer en ligne avant le rendez-vous
+                avec les boutons ci-dessus.
+              </p>
+            </div>
+          )}
 
       </div>
 
@@ -590,6 +700,139 @@ export default function ReservationPage() {
         </div>
       )}
 
+      {partialModal && (() => {
+        const cents = eurosInputToCents(partialEuros);
+        const valid =
+          cents != null &&
+          cents >= data.minPartialCents &&
+          cents <= data.remainingCents;
+        const cash = valid ? data.remainingCents - (cents as number) : null;
+        const presets = [0.25, 0.5, 0.75]
+          .map((r) => Math.round((data.remainingCents * r) / 100) * 100)
+          .filter(
+            (v, i, arr) =>
+              v >= data.minPartialCents &&
+              v <= data.remainingCents &&
+              arr.indexOf(v) === i,
+          );
+        return (
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 px-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="partial-pay-title"
+          >
+            <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0c0c10] p-6 shadow-xl shadow-pss-pink/10">
+              <h2
+                id="partial-pay-title"
+                className="font-display text-lg uppercase tracking-[0.12em] text-white"
+              >
+                Carte + espèces
+              </h2>
+              <p className="mt-3 text-sm leading-relaxed text-white/65">
+                Choisis ce que tu règles{" "}
+                <strong className="text-white">en carte maintenant</strong> — le
+                reste se paie{" "}
+                <strong className="text-white">en espèces le jour du RDV</strong>.
+              </p>
+
+              <div className="mt-5">
+                <label
+                  htmlFor="partial-amount"
+                  className="text-[11px] uppercase tracking-[0.18em] text-white/45"
+                >
+                  Montant en carte
+                </label>
+                <div className="mt-2 flex items-center gap-2 rounded-xl border border-white/15 bg-black/30 px-4 py-3 focus-within:border-pss-pink/50">
+                  <input
+                    id="partial-amount"
+                    type="text"
+                    inputMode="decimal"
+                    value={partialEuros}
+                    onChange={(e) => {
+                      setPartialEuros(e.target.value);
+                      setPartialErr(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") submitPartial();
+                    }}
+                    className="w-full bg-transparent text-lg text-white outline-none placeholder:text-white/30"
+                    placeholder="0"
+                  />
+                  <span className="text-lg text-white/50">€</span>
+                </div>
+                <p className="mt-2 text-xs text-white/40">
+                  Entre {fmtEUR(data.minPartialCents)} et{" "}
+                  {fmtEUR(data.remainingCents)}
+                </p>
+              </div>
+
+              {presets.length > 0 && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {presets.map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => {
+                        setPartialEuros(centsToEurosInput(v));
+                        setPartialErr(null);
+                      }}
+                      className={`rounded-full border px-3 py-1.5 text-xs transition ${
+                        cents === v
+                          ? "border-pss-pink/60 bg-pss-pink/15 text-white"
+                          : "border-white/15 text-white/60 hover:border-white/30"
+                      }`}
+                    >
+                      {fmtEUR(v)}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-5 space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm">
+                <div className="flex justify-between gap-4">
+                  <span className="text-white/45">En carte maintenant</span>
+                  <span className="font-medium text-white">
+                    {valid ? fmtEUR(cents as number) : "—"}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-white/45">En espèces le jour J</span>
+                  <span className="font-medium text-pss-pink">
+                    {cash != null ? fmtEUR(cash) : "—"}
+                  </span>
+                </div>
+              </div>
+
+              {partialErr && (
+                <p className="mt-3 text-xs text-red-400">{partialErr}</p>
+              )}
+
+              <div className="mt-6 flex flex-col gap-3">
+                <button
+                  type="button"
+                  disabled={!valid}
+                  onClick={submitPartial}
+                  className="btn-pink w-full justify-center disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Continuer vers le paiement
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPartialModal(false);
+                    setPartialErr(null);
+                  }}
+                  className="text-center text-xs uppercase tracking-[0.16em] text-white/40 hover:text-white/60"
+                >
+                  Annuler
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {guestModal && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 px-4"
@@ -605,7 +848,7 @@ export default function ReservationPage() {
               Tes informations
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-white/65">
-              On en a besoin pour t&apos;envoyer ta confirmation et ton QR de présence par e-mail.
+              J&apos;en ai besoin pour t&apos;envoyer ta confirmation et ton QR de présence par e-mail.
             </p>
             <div className="mt-5 flex flex-col gap-3">
               <input
@@ -647,6 +890,7 @@ export default function ReservationPage() {
                 onClick={() => {
                   setGuestModal(false);
                   setPendingKind(null);
+                  setPendingAmount(null);
                   setGuestErr(null);
                 }}
                 className="text-center text-xs uppercase tracking-[0.16em] text-white/40 hover:text-white/60"
@@ -697,6 +941,7 @@ export default function ReservationPage() {
                 onClick={() => {
                   setAuthModal(false);
                   setPendingKind(null);
+                  setPendingAmount(null);
                 }}
                 className="text-center text-xs uppercase tracking-[0.16em] text-white/40 hover:text-white/60"
               >
@@ -706,6 +951,92 @@ export default function ReservationPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Lien mort ou réservation supprimée. On distingue le 404 « ce lien ne mène
+ * nulle part » d'une vraie panne API, le message d'action n'étant pas le même.
+ */
+function ReservationNotFound({ message }: { message: string }) {
+  const notFound = /introuvable|invalide|not found/i.test(message);
+
+  return (
+    <div className="relative min-h-screen overflow-hidden bg-[#050507] px-5 pb-24 pt-28 text-white md:pt-36">
+      <Navbar />
+      {/* Halo rose diffus, comme sur la home */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 top-24 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-pss-pink/20 blur-[120px]"
+      />
+
+      <div className="relative mx-auto max-w-lg text-center">
+        <p className="text-[11px] uppercase tracking-[0.28em] text-white/40">
+          PinkStar Society
+        </p>
+
+        <p
+          aria-hidden="true"
+          className="mt-6 select-none bg-gradient-to-b from-white via-pss-pink to-pss-pink/20 bg-clip-text font-display text-[5.5rem] leading-none text-transparent sm:text-[7rem]"
+        >
+          {notFound ? "404" : "!"}
+        </p>
+
+        <h1 className="mt-4 font-display text-2xl uppercase leading-tight tracking-[0.06em] sm:text-3xl">
+          {notFound
+            ? "Ce lien ne mène à aucune réservation"
+            : "Réservation indisponible"}
+        </h1>
+
+        <p className="mt-4 text-sm leading-relaxed text-white/65">
+          {notFound ? (
+            <>
+              Le lien est peut-être incomplet, expiré, ou le rendez-vous a été
+              annulé. Vérifie le lien reçu par e-mail — ou écris-moi, je
+              retrouve ça en deux minutes.
+            </>
+          ) : (
+            <>
+              Impossible de charger cette réservation pour le moment. Réessaie
+              dans un instant.
+            </>
+          )}
+        </p>
+
+        <p className="mt-5 inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-1.5 text-xs text-white/45">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-pss-pink/70" />
+          <span className="truncate">{message}</span>
+        </p>
+
+        <div className="mt-9 flex flex-wrap justify-center gap-3">
+          {notFound ? (
+            <Link to="/disponibilites" className="btn-pink">
+              Voir les disponibilités
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="btn-pink"
+            >
+              Réessayer
+            </button>
+          )}
+          <Link to="/" className="btn-chrome">
+            Accueil
+          </Link>
+        </div>
+
+        <a
+          href="https://instagram.com/pinkstar_society"
+          target="_blank"
+          rel="noreferrer"
+          className="mt-8 inline-block text-xs uppercase tracking-[0.16em] text-white/40 underline decoration-white/20 underline-offset-4 transition hover:text-pss-pink hover:decoration-pss-pink/40"
+        >
+          M&apos;écrire en DM @pinkstar_society
+        </a>
+      </div>
     </div>
   );
 }

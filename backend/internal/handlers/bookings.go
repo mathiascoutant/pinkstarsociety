@@ -162,6 +162,7 @@ func (h *Handlers) AdminBookingSummary(c *gin.Context) {
 			"clientName":     clientName,
 			"priceCents":     b.PriceCents,
 			"depositCents":   b.DepositCents,
+			"paidCents":      b.PaidAmountCents(),
 			"description":    b.Description,
 			"publicToken":    b.PublicToken,
 		})
@@ -595,6 +596,9 @@ func bookingToJSON(b models.Booking) gin.H {
 		"endTime":              b.EndTime,
 		"priceCents":           b.PriceCents,
 		"depositCents":         b.DepositCents,
+		"paidCents":            b.PaidAmountCents(),
+		"remainingCents":       b.RemainingCents(),
+		"cashOnSiteIntent":     b.CashOnSiteIntent,
 		"description":          b.Description,
 		"inspirationRequired":  b.InspirationRequired,
 		"inspirationImages":    inspirationImagesPublicJSON(b.PublicToken, b.InspirationImages),

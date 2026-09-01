@@ -70,6 +70,8 @@ func (h *Handlers) AdminCompleteService(c *gin.Context) {
 	if b.PaymentStatus != "paid" {
 		set["balance_paid_method"] = method
 		set["payment_status"] = "paid"
+		set["paid_cents"] = b.PriceCents
+		set["cash_on_site_intent"] = false
 	}
 
 	res, err := h.DB.Collection("bookings").UpdateOne(ctx,

@@ -48,6 +48,7 @@ func (h *Handlers) GetPublicBooking(c *gin.Context) {
 		resp["canPayDeposit"] = false
 		resp["canPayFull"] = false
 		resp["canPayBalance"] = false
+		resp["canPayPartial"] = false
 	}
 	c.JSON(http.StatusOK, resp)
 }
@@ -104,33 +105,51 @@ func (h *Handlers) hasConfirmedOverlap(ctx context.Context, b models.Booking) bo
 	return false
 }
 
-func publicBookingResponse(b models.Booking) gin.H {
-	remaining := b.PriceCents - b.DepositCents
-	if remaining < 0 {
-		remaining = 0
+// minPartialCents : montant minimum d'un paiement partiel en ligne.
+// Avant tout paiement, l'acompte reste le plancher (il bloque le créneau) ;
+// ensuite, n'importe quel montant à partir de 1 €.
+func minPartialCents(b models.Booking) int64 {
+	if b.PaidAmountCents() <= 0 {
+		return b.DepositCents
 	}
+	return 100
+}
+
+func publicBookingResponse(b models.Booking) gin.H {
+	paid := b.PaidAmountCents()
+	remaining := b.RemainingCents()
+	minPartial := minPartialCents(b)
 	inspCount := len(b.InspirationImages)
 	inspReady := !b.InspirationRequired || inspCount > 0
 	canPayFirst := b.PaymentStatus == "pending" && inspReady
+	// Une fois le split carte/espèces choisi et la part carte réglée, il ne reste
+	// que le montant à régler en espèces le jour J : on ne repropose pas de split.
+	canPayPartial := (canPayFirst || b.PaymentStatus == "deposit_paid") &&
+		remaining > minPartial &&
+		!b.CashOnSiteIntent
 	out := gin.H{
-		"serviceTypeName":         b.ServiceTypeName,
-		"date":                    b.Date,
-		"time":                    b.Time,
-		"priceCents":              b.PriceCents,
-		"depositCents":            b.DepositCents,
-		"remainingCents":          remaining,
-		"description":             b.Description,
-		"inspirationRequired":     b.InspirationRequired,
-		"inspirationImages":       inspirationImagesPublicJSON(b.PublicToken, b.InspirationImages),
-		"inspirationImagesCount":  inspCount,
-		"inspirationReady":        inspReady,
-		"paymentStatus":           b.PaymentStatus,
-		"visitStatus":             b.VisitStatus,
-		"visitLabelFR":            visitLabelForPublicPage(b),
-		"canPayDeposit":           canPayFirst,
-		"canPayFull":              canPayFirst,
-		"canPayBalance":           b.PaymentStatus == "deposit_paid",
-		"paidLabel":               paymentLabel(b.PaymentStatus),
+		"serviceTypeName":        b.ServiceTypeName,
+		"date":                   b.Date,
+		"time":                   b.Time,
+		"priceCents":             b.PriceCents,
+		"depositCents":           b.DepositCents,
+		"paidCents":              paid,
+		"remainingCents":         remaining,
+		"minPartialCents":        minPartial,
+		"cashOnSiteIntent":       b.CashOnSiteIntent,
+		"description":            b.Description,
+		"inspirationRequired":    b.InspirationRequired,
+		"inspirationImages":      inspirationImagesPublicJSON(b.PublicToken, b.InspirationImages),
+		"inspirationImagesCount": inspCount,
+		"inspirationReady":       inspReady,
+		"paymentStatus":          b.PaymentStatus,
+		"visitStatus":            b.VisitStatus,
+		"visitLabelFR":           visitLabelForPublicPage(b),
+		"canPayDeposit":          canPayFirst,
+		"canPayFull":             canPayFirst,
+		"canPayBalance":          b.PaymentStatus == "deposit_paid" && remaining > 0,
+		"canPayPartial":          canPayPartial,
+		"paidLabel":              paymentLabel(b),
 	}
 	if b.BalancePaidMethod != "" {
 		out["balancePaidMethod"] = b.BalancePaidMethod
@@ -177,11 +196,15 @@ func (h *Handlers) GetPublicAvailability(c *gin.Context) {
 	c.JSON(http.StatusOK, monthAvailabilityJSON(doc))
 }
 
-func paymentLabel(s string) string {
-	switch s {
+func paymentLabel(b models.Booking) string {
+	switch b.PaymentStatus {
 	case "paid":
 		return "Payé intégralement"
 	case "deposit_paid":
+		paid := b.PaidAmountCents()
+		if paid != b.DepositCents {
+			return fmt.Sprintf("%s payés · reste %s", eurLabel(paid), eurLabel(b.RemainingCents()))
+		}
 		return "Acompte payé"
 	default:
 		return "En attente de paiement"
@@ -189,8 +212,10 @@ func paymentLabel(s string) string {
 }
 
 type checkoutBody struct {
-	Kind  string `json:"kind" binding:"required"` // full | deposit | balance
-	Guest *struct {
+	Kind string `json:"kind" binding:"required"` // full | deposit | balance | partial
+	// AmountCents : montant à régler en carte, uniquement pour kind="partial".
+	AmountCents int64 `json:"amountCents,omitempty"`
+	Guest       *struct {
 		FirstName string `json:"firstName"`
 		LastName  string `json:"lastName"`
 		Email     string `json:"email"`
@@ -205,7 +230,7 @@ func (h *Handlers) CreateCheckout(c *gin.Context) {
 		return
 	}
 	kind := strings.ToLower(strings.TrimSpace(body.Kind))
-	if kind != "full" && kind != "deposit" && kind != "balance" {
+	if kind != "full" && kind != "deposit" && kind != "balance" && kind != "partial" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "type de paiement invalide"})
 		return
 	}
@@ -260,16 +285,54 @@ func (h *Handlers) CreateCheckout(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "solde indisponible"})
 			return
 		}
-		amount = b.PriceCents - b.DepositCents
+		amount = b.RemainingCents()
 		if amount <= 0 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "rien à payer"})
 			return
 		}
 		payKind = "balance"
+	case "partial":
+		// Paiement partiel : une partie en carte maintenant, le reste en espèces le jour J.
+		if b.PaymentStatus != "pending" && b.PaymentStatus != "deposit_paid" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "paiement partiel indisponible"})
+			return
+		}
+		// Le split a déjà été fait : le reliquat est dû en espèces sur place.
+		if b.CashOnSiteIntent {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "paiement partiel indisponible"})
+			return
+		}
+		if b.PaymentStatus == "pending" && b.InspirationRequired && len(b.InspirationImages) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ajoute au moins une image d'inspiration avant de payer"})
+			return
+		}
+		remaining := b.RemainingCents()
+		minAmount := minPartialCents(b)
+		if remaining <= minAmount {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "paiement partiel indisponible"})
+			return
+		}
+		amount = body.AmountCents
+		if amount < minAmount {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": fmt.Sprintf("le montant minimum est de %s", eurLabel(minAmount)),
+			})
+			return
+		}
+		if amount > remaining {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": fmt.Sprintf("le montant maximum est de %s", eurLabel(remaining)),
+			})
+			return
+		}
+		payKind = "partial"
 	}
 	success := fmt.Sprintf("%s/reservation/%s/merci?session_id={CHECKOUT_SESSION_ID}", h.Config.FrontendURL, token)
 	cancelURL := fmt.Sprintf("%s/reservation/%s", h.Config.FrontendURL, token)
 	title := "Réservation — " + b.ServiceTypeName
+	if payKind == "partial" {
+		title += " (paiement partiel)"
+	}
 	var userIDHex string
 	if cl := optionalBearerClaims(c, h.Config.JWTSecret); cl != nil {
 		userIDHex = cl.UserID

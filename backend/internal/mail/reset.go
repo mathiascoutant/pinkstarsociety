@@ -27,7 +27,7 @@ var resetHTMLTmpl = template.Must(template.New("reset").Parse(`
         <table role="presentation" width="100%" style="max-width:560px;border-radius:20px;overflow:hidden;border:1px solid rgba(255,43,177,0.25);background:#0c0c12;box-shadow:0 24px 64px rgba(0,0,0,0.45),0 0 40px rgba(255,43,177,0.08);">
           <tr>
             <td style="padding:28px 32px 20px;background:linear-gradient(135deg,rgba(255,43,177,0.18) 0%,transparent 55%);border-bottom:1px solid rgba(255,255,255,0.06);">
-              <p style="margin:0;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;color:rgba(255,255,255,0.45);">Pink Star Society</p>
+              <p style="margin:0;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;color:rgba(255,255,255,0.45);">PinkStar Society</p>
               <h1 style="margin:12px 0 0;font-size:26px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#fff;line-height:1.2;">
                 Mot de passe<br/><span style="background:linear-gradient(90deg,#fff,#ff8ecf,#ff2bb1);-webkit-background-clip:text;background-clip:text;color:transparent;">oublié ?</span>
               </h1>
@@ -54,7 +54,7 @@ var resetHTMLTmpl = template.Must(template.New("reset").Parse(`
           <tr>
             <td style="padding:18px 32px 26px;border-top:1px solid rgba(255,255,255,0.06);">
               <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.35);text-align:center;">
-                Pink Star Society — message automatique, merci de ne pas répondre directement à cet e-mail.
+                PinkStar Society — message automatique, merci de ne pas répondre directement à cet e-mail.
               </p>
             </td>
           </tr>
@@ -78,11 +78,11 @@ func SendPasswordReset(cfg *config.Config, to, token string) error {
 		return err
 	}
 
-	plain := "Bonjour,\n\nTu as demandé à réinitialiser ton mot de passe Pink Star Society.\n\n" +
+	plain := "Bonjour,\n\nTu as demandé à réinitialiser ton mot de passe PinkStar Society.\n\n" +
 		"Clique sur ce lien pour en choisir un nouveau (valide 1 heure) :\n" +
-		resetURL + "\n\nSi tu n'as pas fait cette demande, ignore cet e-mail.\n\n— Pink Star Society\n"
+		resetURL + "\n\nSi tu n'as pas fait cette demande, ignore cet e-mail.\n\n— PinkStar Society\n"
 
-	msg, err := buildMultipartMessage(cfg.EmailFrom, to, "Pink Star Society — Réinitialisation du mot de passe", plain, htmlBuf.String())
+	msg, err := buildMultipartMessage(cfg.EmailFrom, to, "PinkStar Society — Réinitialisation du mot de passe", plain, htmlBuf.String())
 	if err != nil {
 		return err
 	}

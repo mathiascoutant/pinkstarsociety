@@ -45,7 +45,7 @@ var bookingUpdateHTMLTmpl = template.Must(template.New("bookingUpdate").Parse(`
         <table role="presentation" width="100%" style="max-width:560px;border-radius:20px;overflow:hidden;border:1px solid rgba(255,43,177,0.25);background:#0c0c12;box-shadow:0 24px 64px rgba(0,0,0,0.45),0 0 40px rgba(255,43,177,0.08);">
           <tr>
             <td style="padding:28px 32px 20px;background:linear-gradient(135deg,rgba(255,43,177,0.18) 0%,transparent 55%);border-bottom:1px solid rgba(255,255,255,0.06);">
-              <p style="margin:0;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;color:rgba(255,255,255,0.45);">Pink Star Society</p>
+              <p style="margin:0;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;color:rgba(255,255,255,0.45);">PinkStar Society</p>
               <h1 style="margin:12px 0 0;font-size:26px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#fff;line-height:1.2;">
                 Rendez-vous<br/><span style="background:linear-gradient(90deg,#fff,#ff8ecf,#ff2bb1);-webkit-background-clip:text;background-clip:text;color:transparent;">modifié</span>
               </h1>
@@ -88,7 +88,7 @@ var bookingUpdateHTMLTmpl = template.Must(template.New("bookingUpdate").Parse(`
           <tr>
             <td style="padding:18px 32px 26px;border-top:1px solid rgba(255,255,255,0.06);">
               <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.35);text-align:center;">
-                Pink Star Society — message automatique, merci de ne pas répondre directement à cet e-mail.
+                PinkStar Society — message automatique, merci de ne pas répondre directement à cet e-mail.
               </p>
             </td>
           </tr>
@@ -103,7 +103,7 @@ var bookingUpdateHTMLTmpl = template.Must(template.New("bookingUpdate").Parse(`
 func plainBookingUpdateBody(d bookingUpdateMailData) string {
 	var sb strings.Builder
 	sb.WriteString("Bonjour,\n\n")
-	sb.WriteString("Ton rendez-vous Pink Star Society a été modifié.\n\n")
+	sb.WriteString("Ton rendez-vous PinkStar Society a été modifié.\n\n")
 	sb.WriteString("Ce qui a changé\n")
 	for _, ch := range d.Changes {
 		sb.WriteString("— ")
@@ -148,7 +148,7 @@ func SendBookingUpdateNotification(cfg *config.Config, to string, b models.Booki
 	if err := bookingUpdateHTMLTmpl.Execute(&htmlBuf, data); err != nil {
 		return err
 	}
-	subject := mime.QEncoding.Encode("utf-8", "Pink Star Society — Rendez-vous modifié")
+	subject := mime.QEncoding.Encode("utf-8", "PinkStar Society — Rendez-vous modifié")
 
 	var mimeBody bytes.Buffer
 	mp := multipart.NewWriter(&mimeBody)

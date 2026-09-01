@@ -36,11 +36,16 @@ func formatEUR(cents int64) string {
 func paymentDetailsLine(b models.Booking) string {
 	switch b.PaymentStatus {
 	case "deposit_paid":
-		remaining := b.PriceCents - b.DepositCents
-		if remaining < 0 {
-			remaining = 0
+		paid := b.PaidAmountCents()
+		line := "Paiement : acompte payé"
+		if paid != b.DepositCents {
+			line = "Paiement : " + formatEUR(paid) + " payés"
 		}
-		return "Paiement : acompte payé, reste " + formatEUR(remaining)
+		line += ", reste " + formatEUR(b.RemainingCents())
+		if b.CashOnSiteIntent {
+			line += " (espèces sur place)"
+		}
+		return line
 	case "paid":
 		return "Paiement : totalité payée"
 	default:
