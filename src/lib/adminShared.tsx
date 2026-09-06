@@ -120,6 +120,8 @@ export type RevenueAnalytics = {
   paidFullOnline: number;
   paidFullCash: number;
   paidFullBank: number;
+  /** RDV de la période dont il reste quelque chose à encaisser. */
+  pendingBookings: Booking[];
   byWeekday: { label: string; count: number; revenueCents: number }[];
   byHour: { hour: string; count: number }[];
   byService: { name: string; count: number; revenueCents: number }[];
@@ -267,6 +269,8 @@ export function computeRevenueAnalytics(
   const weekdayRevenue = Array(7).fill(0);
   const hourCounts = new Map<string, number>();
   const serviceMap = new Map<string, { count: number; revenueCents: number }>();
+  /** RDV dont il reste quelque chose à encaisser (rien payé ou acompte seul). */
+  const pendingBookings: Booking[] = [];
 
   for (const b of periodBookings) {
     if (b.paymentStatus === "paid") {
@@ -279,9 +283,11 @@ export function computeRevenueAnalytics(
       collectedCents += collected;
       pendingCents += Math.max(0, b.priceCents - collected);
       depositOnlyCount++;
+      pendingBookings.push(b);
     } else {
       pendingCents += b.priceCents;
       pendingCount++;
+      pendingBookings.push(b);
     }
 
     const d = new Date(b.date + "T00:00:00");
@@ -311,6 +317,9 @@ export function computeRevenueAnalytics(
     paidFullOnline,
     paidFullCash,
     paidFullBank,
+    pendingBookings: pendingBookings
+      .slice()
+      .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time)),
     byWeekday: WEEKDAY_LABELS.map((label, i) => ({
       label,
       count: weekdayCounts[i],

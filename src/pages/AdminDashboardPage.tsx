@@ -395,6 +395,19 @@ function RevenueDetailView({
   const periodWord =
     period.mode === "day" ? "ce jour" : period.mode === "week" ? "cette semaine" : "ce mois";
 
+  const navigate = useNavigate();
+  const [showPending, setShowPending] = useState(false);
+
+  /** RDV en attente de paiement, groupés par jour. */
+  const pendingGroups = useMemo(() => {
+    const map = new Map<string, Booking[]>();
+    for (const b of analytics.pendingBookings) {
+      if (!map.has(b.date)) map.set(b.date, []);
+      map.get(b.date)!.push(b);
+    }
+    return Array.from(map.entries());
+  }, [analytics.pendingBookings]);
+
   return (
     <>
       <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b border-white/10 bg-[#050507]/90 px-4 backdrop-blur md:px-8">
@@ -489,6 +502,7 @@ function RevenueDetailView({
             value={fmtEUR(analytics.pendingCents)}
             hint={`${analytics.pendingCount + analytics.depositOnlyCount} paiement(s)`}
             icon="clock"
+            onClick={() => setShowPending((v) => !v)}
           />
           {period.mode === "day" ? (
             <StatCard
@@ -506,6 +520,55 @@ function RevenueDetailView({
             />
           )}
         </div>
+
+        {showPending && (
+          <div className="rounded-2xl border border-pss-pink/30 bg-white/[0.02] p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="font-display text-sm uppercase tracking-[0.14em] text-white">
+                  Paiements en attente
+                </h2>
+                <p className="mt-1 text-xs text-white/50">
+                  {analytics.pendingBookings.length} rendez-vous · {fmtEUR(analytics.pendingCents)}{" "}
+                  restant à encaisser {periodWord}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPending(false)}
+                className="rounded-lg border border-white/10 px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-white/60 transition hover:border-white/20 hover:text-white"
+              >
+                Masquer
+              </button>
+            </div>
+            {pendingGroups.length === 0 ? (
+              <p className="mt-6 text-sm text-white/55">
+                Tout est encaissé {periodWord}.
+              </p>
+            ) : (
+              <div className="mt-4 space-y-5">
+                {pendingGroups.map(([date, list]) => (
+                  <div key={date}>
+                    <p className="mb-2 text-[10px] uppercase tracking-[0.18em] text-white/45">
+                      {formatLongDate(date)}
+                    </p>
+                    <ul className="space-y-2">
+                      {list.map((b) => (
+                        <BookingRow
+                          key={b.id}
+                          b={b}
+                          onSelect={(booking) =>
+                            navigate(`/admin/reservations?detail=${booking.id}`)
+                          }
+                        />
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className={`grid gap-4 ${period.mode === "day" ? "" : "lg:grid-cols-2"}`}>
           <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
