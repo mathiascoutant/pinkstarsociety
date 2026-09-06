@@ -71,6 +71,7 @@ export default function AdminBookingsPage() {
   }
 
   function closeNewBooking() {
+    seededSearchRef.current = null;
     setShowNewBooking(false);
     setCreatedUrl(null);
     setLinkCopied(false);
@@ -161,9 +162,24 @@ export default function AdminBookingsPage() {
     }
   }, [searchParams, bookings]);
 
-  // Auto-open create modal with date/time prefilled from agenda (once per URL)
+  /**
+   * Pré-remplissage depuis l'agenda — une seule fois par URL.
+   *
+   * Sans garde-fou, cet effet rejouait le `date`/`time` du créneau cliqué par
+   * dessus la saisie en cours : au moindre remontage (rechargement, onglet
+   * restauré par iOS après un passage dans une autre app, retour arrière),
+   * l'heure saisie repassait à celle du créneau et le RDV partait à la
+   * mauvaise date/heure. On sème donc une fois, puis on retire aussitôt les
+   * paramètres de l'URL : la modale n'est plus rattachée à ces valeurs.
+   */
+  const seededSearchRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (searchParams.get("new") !== "1") return;
+    const signature = searchParams.toString();
+    if (seededSearchRef.current === signature) return;
+    seededSearchRef.current = signature;
+
     setDetailBooking(null);
     setCreatedUrl(null);
     setLinkCopied(false);
@@ -176,7 +192,16 @@ export default function AdminBookingsPage() {
     setBDesc("");
     setBInspiration(false);
     setShowNewBooking(true);
-  }, [searchParams]);
+
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        for (const key of ["new", "date", "time", "detail"]) next.delete(key);
+        return next;
+      },
+      { replace: true },
+    );
+  }, [searchParams, setSearchParams]);
 
   // Sync open detail with latest booking data (without reopening a closed one)
   useEffect(() => {
