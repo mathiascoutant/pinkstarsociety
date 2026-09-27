@@ -278,6 +278,7 @@ export default function AdminBookingsPage() {
         (b) =>
           b.serviceTypeName.toLowerCase().includes(q) ||
           (b.clientName || "").toLowerCase().includes(q) ||
+          (b.instagram || "").includes(q.replace(/^@/, "")) ||
           b.date.includes(q),
       );
     }
@@ -820,6 +821,29 @@ export default function AdminBookingsPage() {
                         <p className="text-sm text-white/45">
                           Aucun client rattaché.
                         </p>
+                      )}
+                      {detailBooking.instagram && (
+                        <a
+                          href={`https://ig.me/m/${detailBooking.instagram}`}
+                          title="Ouvrir la conversation Instagram"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-2 flex w-fit max-w-full items-center gap-1.5 break-all text-sm text-pss-pink hover:underline"
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            className="h-3.5 w-3.5 shrink-0"
+                            aria-hidden="true"
+                          >
+                            <rect x="3" y="3" width="18" height="18" rx="5" />
+                            <circle cx="12" cy="12" r="4" />
+                            <circle cx="17.5" cy="6.5" r="0.8" fill="currentColor" />
+                          </svg>
+                          @{detailBooking.instagram}
+                        </a>
                       )}
                     </DetailCard>
 

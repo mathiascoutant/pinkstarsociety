@@ -129,6 +129,9 @@ func UpsertBookingEvent(ctx context.Context, cfg *config.Config, b models.Bookin
 	} else if name == "" {
 		fmt.Fprintln(&desc, "Client : (non renseigné)")
 	}
+	if ig := strings.TrimSpace(b.InstagramHandle); ig != "" {
+		fmt.Fprintf(&desc, "Instagram : @%s — DM : https://ig.me/m/%s\n", ig, ig)
+	}
 	fmt.Fprintf(&desc, "Prestation : %s\n", presta)
 	fmt.Fprintf(&desc, "Prix total : %s\n", formatEUR(b.PriceCents))
 	fmt.Fprintf(&desc, "%s\n", paymentDetailsLine(b))

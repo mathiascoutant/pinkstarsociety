@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -150,6 +151,7 @@ func publicBookingResponse(b models.Booking) gin.H {
 		"canPayBalance":          b.PaymentStatus == "deposit_paid" && remaining > 0,
 		"canPayPartial":          canPayPartial,
 		"paidLabel":              paymentLabel(b),
+		"instagram":              b.InstagramHandle,
 	}
 	if b.BalancePaidMethod != "" {
 		out["balancePaidMethod"] = b.BalancePaidMethod
@@ -215,6 +217,8 @@ type checkoutBody struct {
 	Kind string `json:"kind" binding:"required"` // full | deposit | balance | partial
 	// AmountCents : montant à régler en carte, uniquement pour kind="partial".
 	AmountCents int64 `json:"amountCents,omitempty"`
+	// Instagram : pseudo du client, obligatoire au premier paiement.
+	Instagram string `json:"instagram,omitempty"`
 	Guest       *struct {
 		FirstName string `json:"firstName"`
 		LastName  string `json:"lastName"`
@@ -252,6 +256,14 @@ func (h *Handlers) CreateCheckout(c *gin.Context) {
 			"error":     "Ce créneau vient d'être réservé par quelqu'un d'autre.",
 			"slotTaken": true,
 		})
+		return
+	}
+
+	// Premier paiement (acompte, totalité ou partiel) : pseudo Instagram obligatoire
+	// pour savoir avec qui j'ai échangé en DM.
+	instagram, instagramOK := normalizeInstagramHandle(body.Instagram)
+	if b.PaymentStatus == "pending" && !instagramOK {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "renseigne ton compte Instagram (ex. @pinkstar_society)"})
 		return
 	}
 
@@ -363,8 +375,31 @@ func (h *Handlers) CreateCheckout(c *gin.Context) {
 	if guestEmail != "" {
 		update["customer_email"] = guestEmail
 	}
+	if instagramOK {
+		update["instagram_handle"] = instagram
+	}
 	_, _ = h.DB.Collection("bookings").UpdateOne(ctx, bson.M{"_id": b.ID}, bson.M{"$set": update})
 	c.JSON(http.StatusOK, gin.H{"url": sessURL})
+}
+
+var instagramHandleRe = regexp.MustCompile(`^[A-Za-z0-9._]{1,30}$`)
+
+// normalizeInstagramHandle accepte « @pseudo », « pseudo » ou un lien de profil
+// (instagram.com/pseudo) et renvoie le pseudo seul, en minuscules.
+func normalizeInstagramHandle(raw string) (string, bool) {
+	s := strings.TrimSpace(raw)
+	low := strings.ToLower(s)
+	if i := strings.Index(low, "instagram.com/"); i >= 0 {
+		s = s[i+len("instagram.com/"):]
+		if j := strings.IndexAny(s, "/?#"); j >= 0 {
+			s = s[:j]
+		}
+	}
+	s = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(s), "@"))
+	if !instagramHandleRe.MatchString(s) {
+		return "", false
+	}
+	return s, true
 }
 
 type confirmBody struct {

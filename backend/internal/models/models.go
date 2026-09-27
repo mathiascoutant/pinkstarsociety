@@ -92,6 +92,9 @@ type Booking struct {
 	CustomerEmail         string             `json:"-" bson:"customer_email,omitempty"`
 	GuestFirstName        string             `json:"-" bson:"guest_first_name,omitempty"`
 	GuestLastName         string             `json:"-" bson:"guest_last_name,omitempty"`
+	// InstagramHandle : pseudo Instagram du client (sans @), obligatoire au 1er
+	// paiement pour relier la réservation à la conversation en DM.
+	InstagramHandle string `json:"-" bson:"instagram_handle,omitempty"`
 	NotifiedSessionIDs    []string           `json:"-" bson:"notified_session_ids,omitempty"`
 	StripeSessionID       string             `json:"-" bson:"stripe_session_id,omitempty"`
 	GoogleCalendarEventID string             `json:"-" bson:"google_calendar_event_id,omitempty"`

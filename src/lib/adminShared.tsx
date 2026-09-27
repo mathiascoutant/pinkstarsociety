@@ -71,6 +71,8 @@ export type Booking = {
   guestFirstName?: string;
   guestLastName?: string;
   guestEmail?: string;
+  /** Pseudo Instagram du client (sans @). */
+  instagram?: string;
   visitStatus?: string;
   visitLabelFR?: string;
   visitPointsAwarded?: boolean;
@@ -87,6 +89,7 @@ export type BookingSummaryDetail = {
   visitLabelFR?: string;
   clientUserId?: string;
   clientName: string;
+  instagram?: string;
   priceCents: number;
   depositCents: number;
   paidCents?: number;
@@ -770,6 +773,7 @@ export function BookingRow({ b, onSelect }: { b: Booking; onSelect: (b: Booking)
           </div>
           <p className="mt-1 truncate text-xs text-white/65 sm:text-sm">
             {b.clientName || (b.clientUserId ? "—" : "Visiteur (pas de compte)")}
+            {b.instagram && <span className="text-pss-pink/80"> · @{b.instagram}</span>}
           </p>
           <p className="mt-1 font-display text-sm text-white sm:hidden">
             {fmtEUR(b.priceCents)}

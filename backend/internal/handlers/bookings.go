@@ -160,6 +160,7 @@ func (h *Handlers) AdminBookingSummary(c *gin.Context) {
 			"visitLabelFR":   visitDisplayLabel(b),
 			"clientUserId":   clientID,
 			"clientName":     clientName,
+			"instagram":      b.InstagramHandle,
 			"priceCents":     b.PriceCents,
 			"depositCents":   b.DepositCents,
 			"paidCents":      b.PaidAmountCents(),
@@ -611,6 +612,9 @@ func bookingToJSON(b models.Booking) gin.H {
 	}
 	if !b.ClientUserID.IsZero() {
 		out["clientUserId"] = b.ClientUserID.Hex()
+	}
+	if s := strings.TrimSpace(b.InstagramHandle); s != "" {
+		out["instagram"] = s
 	}
 	if b.ClientUserID.IsZero() {
 		if s := strings.TrimSpace(b.GuestFirstName); s != "" {

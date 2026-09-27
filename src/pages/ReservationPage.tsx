@@ -41,6 +41,8 @@ type PublicBooking = {
   paidLabel: string;
   /** true si la même demi-journée a déjà été réservée par quelqu'un d'autre. */
   slotTaken?: boolean;
+  /** Pseudo Instagram déjà renseigné (sans @). */
+  instagram?: string;
 };
 
 type PayKind = "full" | "deposit" | "balance" | "partial";
@@ -57,6 +59,18 @@ function eurosInputToCents(raw: string): number | null {
   const s = raw.trim().replace(",", ".").replace(/\s/g, "");
   if (!/^\d+(\.\d{1,2})?$/.test(s)) return null;
   return Math.round(parseFloat(s) * 100);
+}
+
+/**
+ * "@pseudo", "pseudo" ou lien instagram.com/pseudo → "pseudo".
+ * null si ce n'est pas un pseudo Instagram valide. Même règle que l'API.
+ */
+function normalizeInstagram(raw: string): string | null {
+  let s = raw.trim();
+  const i = s.toLowerCase().indexOf("instagram.com/");
+  if (i >= 0) s = s.slice(i + "instagram.com/".length).split(/[/?#]/)[0];
+  s = s.trim().replace(/^@/, "").toLowerCase();
+  return /^[a-z0-9._]{1,30}$/.test(s) ? s : null;
 }
 
 function centsToEurosInput(cents: number) {
@@ -85,6 +99,7 @@ export default function ReservationPage() {
   const { user } = useAuth();
   const nav = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
+  const instagramRef = useRef<HTMLInputElement>(null);
   const [data, setData] = useState<PublicBooking | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [payBusy, setPayBusy] = useState<string | null>(null);
@@ -96,6 +111,8 @@ export default function ReservationPage() {
   const [guestErr, setGuestErr] = useState<string | null>(null);
   const [pendingKind, setPendingKind] = useState<PayKind | null>(null);
   const [pendingAmount, setPendingAmount] = useState<number | null>(null);
+  const [instagram, setInstagram] = useState("");
+  const [instagramErr, setInstagramErr] = useState<string | null>(null);
   const [partialModal, setPartialModal] = useState(false);
   const [partialEuros, setPartialEuros] = useState("");
   const [partialErr, setPartialErr] = useState<string | null>(null);
@@ -112,7 +129,10 @@ export default function ReservationPage() {
     (async () => {
       try {
         const b = await api<PublicBooking>(`/public/bookings/${token}`);
-        if (!cancelled) setData(b);
+        if (!cancelled) {
+          setData(b);
+          if (b.instagram) setInstagram(`@${b.instagram}`);
+        }
       } catch (e) {
         if (!cancelled)
           setErr(e instanceof Error ? e.message : "Lien invalide");
@@ -178,6 +198,8 @@ export default function ReservationPage() {
       const body: Record<string, unknown> = { kind };
       if (kind === "partial" && amountCents != null) body.amountCents = amountCents;
       if (guest) body.guest = guest;
+      const ig = normalizeInstagram(instagram);
+      if (ig) body.instagram = ig;
       const res = await api<{ url: string }>(
         `/public/bookings/${token}/checkout`,
         { method: "POST", body: JSON.stringify(body) },
@@ -190,6 +212,23 @@ export default function ReservationPage() {
     }
   }
 
+  /**
+   * Premier paiement : le pseudo Instagram est obligatoire (je dois savoir avec
+   * qui j'ai échangé en DM). false + message sous le champ s'il manque.
+   */
+  function checkInstagram(): boolean {
+    if (data?.paymentStatus !== "pending") return true;
+    if (normalizeInstagram(instagram)) return true;
+    setInstagramErr(
+      instagram.trim()
+        ? "Ce pseudo Instagram n'est pas valide."
+        : "Ton compte Instagram est obligatoire pour payer.",
+    );
+    instagramRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    instagramRef.current?.focus({ preventScroll: true });
+    return false;
+  }
+
   function onPayClick(kind: PayKind, amountCents: number | null = null) {
     if (
       data?.inspirationRequired &&
@@ -199,6 +238,7 @@ export default function ReservationPage() {
       setUploadErr("Ajoute au moins une image d'inspiration avant de payer.");
       return;
     }
+    if (!checkInstagram()) return;
     if (user) {
       void checkout(kind, amountCents);
       return;
@@ -219,6 +259,7 @@ export default function ReservationPage() {
       setUploadErr("Ajoute au moins une image d'inspiration avant de payer.");
       return;
     }
+    if (!checkInstagram()) return;
     setPartialErr(null);
     setPartialEuros(centsToEurosInput(defaultPartialCents(data)));
     setPartialModal(true);
@@ -565,6 +606,46 @@ export default function ReservationPage() {
           <div className="mt-8 flex flex-col gap-3">
             {data.paymentStatus === "pending" && (
               <>
+                <div className="mb-2 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+                  <label
+                    htmlFor="instagram-handle"
+                    className="text-[11px] uppercase tracking-[0.18em] text-white/45"
+                  >
+                    Ton compte Instagram <span className="text-pss-pink">*</span>
+                  </label>
+                  <p className="mt-1.5 text-xs leading-relaxed text-white/50">
+                    Celui avec lequel tu m&apos;as écrit en DM, pour que je
+                    sache à qui correspond ce rendez-vous.
+                  </p>
+                  <div
+                    className={`mt-3 flex items-center rounded-xl border bg-black/30 px-4 py-3 focus-within:border-pss-pink/50 ${
+                      instagramErr ? "border-red-400/60" : "border-white/15"
+                    }`}
+                  >
+                    <span className="text-sm text-white/40">@</span>
+                    <input
+                      ref={instagramRef}
+                      id="instagram-handle"
+                      type="text"
+                      inputMode="text"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      required
+                      aria-invalid={!!instagramErr}
+                      placeholder="ton_pseudo"
+                      value={instagram.replace(/^@/, "")}
+                      onChange={(e) => {
+                        setInstagram(e.target.value);
+                        setInstagramErr(null);
+                      }}
+                      className="ml-0.5 w-full bg-transparent text-sm text-white outline-none placeholder:text-white/30"
+                    />
+                  </div>
+                  {instagramErr && (
+                    <p className="mt-2 text-xs text-red-400">{instagramErr}</p>
+                  )}
+                </div>
                 <button
                   type="button"
                   disabled={payBusy !== null || payBlockedByInspo}
