@@ -16,6 +16,8 @@ import {
 type Props = {
   data: MonthAvailability;
   mode: "public" | "admin";
+  /** Jour sélectionné à l'ouverture sur mobile (sinon aujourd'hui / le 1er). */
+  focusDay?: number;
   onToggle?: (day: number, slot: SlotKey) => void;
   onToggleDay?: (day: number) => void;
 };
@@ -45,6 +47,7 @@ function formatSelectedDay(year: number, month: number, day: number) {
 export default function AvailabilityCalendar({
   data,
   mode,
+  focusDay,
   onToggle,
   onToggleDay,
 }: Props) {
@@ -60,16 +63,17 @@ export default function AvailabilityCalendar({
     today.getFullYear() === data.year && today.getMonth() + 1 === data.month;
   const todayNum = today.getDate();
 
-  const defaultSelected = isThisMonth ? todayNum : 1;
+  const defaultSelected = focusDay ?? (isThisMonth ? todayNum : 1);
   const [selectedDay, setSelectedDay] = useState(defaultSelected);
 
   useEffect(() => {
     const nextDefault =
-      today.getFullYear() === data.year && today.getMonth() + 1 === data.month
+      focusDay ??
+      (today.getFullYear() === data.year && today.getMonth() + 1 === data.month
         ? today.getDate()
-        : 1;
+        : 1);
     setSelectedDay(nextDefault);
-  }, [data.year, data.month, today]);
+  }, [data.year, data.month, today, focusDay]);
 
   const selected = data.days.find((x) => x.day === selectedDay);
   const selectedPast = isPastDay(data.year, data.month, selectedDay, today);

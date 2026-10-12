@@ -107,6 +107,7 @@ func main() {
 	pub.POST("/bookings/:token/inspiration-images", h.UploadPublicInspirationImages)
 	pub.DELETE("/bookings/:token/inspiration-images/:imageId", h.DeletePublicInspirationImage)
 	pub.GET("/bookings/:token/inspiration-images/:imageId", h.GetPublicInspirationImage)
+	pub.GET("/availability/next", h.GetPublicNextAvailability)
 	pub.GET("/availability/:year/:month", h.GetPublicAvailability)
 
 	r.POST("/api/stripe/webhook", h.StripeWebhook)

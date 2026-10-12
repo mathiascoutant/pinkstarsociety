@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import AvailabilityCalendar, {
   MonthHeader,
@@ -12,12 +12,23 @@ import {
 
 const INSTA_URL = "https://instagram.com/pinkstar_society";
 
+/** ?date=YYYY-MM-DD — lien « Prochaine dispo » de la home. */
+function parseFocusDate(raw: string | null) {
+  const m = raw?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return { year, month, day };
+}
+
 export default function AvailabilityPage() {
+  const [searchParams] = useSearchParams();
+  const [focus] = useState(() => parseFocusDate(searchParams.get("date")));
   const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(focus?.year ?? now.getFullYear());
+  const [month, setMonth] = useState(focus?.month ?? now.getMonth() + 1);
   const [data, setData] = useState<MonthAvailability>(() =>
-    defaultMonth(now.getFullYear(), now.getMonth() + 1),
+    defaultMonth(year, month),
   );
   const [loading, setLoading] = useState(true);
 
@@ -155,7 +166,15 @@ export default function AvailabilityPage() {
 
           <div className="relative mt-7 sm:mt-9">
             <div className={data.published ? "" : "pointer-events-none select-none"}>
-              <AvailabilityCalendar data={data} mode="public" />
+              <AvailabilityCalendar
+                data={data}
+                mode="public"
+                focusDay={
+                  focus?.year === year && focus.month === month
+                    ? focus.day
+                    : undefined
+                }
+              />
             </div>
 
             {(!data.published || loading) && (

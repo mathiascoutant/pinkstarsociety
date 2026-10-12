@@ -17,6 +17,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func (h *Handlers) GetPublicBooking(c *gin.Context) {
@@ -196,6 +197,54 @@ func (h *Handlers) GetPublicAvailability(c *gin.Context) {
 	applyBookingsToMonth(&doc, bookings)
 
 	c.JSON(http.StatusOK, monthAvailabilityJSON(doc))
+}
+
+// GetPublicNextAvailability renvoie le premier jour avec un créneau libre
+// (à partir de maintenant, heure de Paris) parmi les mois publiés, RDV
+// confirmés appliqués.
+//
+// GET /api/public/availability/next
+// → { "next": { "date": "2026-10-14", "slots": ["h14", "h17"] } }
+// → { "next": null } si aucun créneau libre n'est publié
+func (h *Handlers) GetPublicNextAvailability(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+
+	now := time.Now()
+	if loc, err := time.LoadLocation("Europe/Paris"); err == nil {
+		now = now.In(loc)
+	}
+
+	cur, err := h.DB.Collection(availabilityCollection).Find(ctx, bson.M{
+		"published": true,
+		"$or": []bson.M{
+			{"year": now.Year(), "month": bson.M{"$gte": int(now.Month())}},
+			{"year": bson.M{"$gt": now.Year()}},
+		},
+	}, options.Find().SetSort(bson.D{{Key: "year", Value: 1}, {Key: "month", Value: 1}}).SetLimit(12))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "indisponible"})
+		return
+	}
+	var months []models.MonthAvailability
+	if err := cur.All(ctx, &months); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "indisponible"})
+		return
+	}
+
+	for _, m := range months {
+		bookings, err := h.confirmedBookingsForMonth(ctx, m.Year, m.Month)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "indisponible"})
+			return
+		}
+		applyBookingsToMonth(&m, bookings)
+		if next, ok := firstOpenDay(m, now); ok {
+			c.JSON(http.StatusOK, gin.H{"next": next})
+			return
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"next": nil})
 }
 
 func paymentLabel(b models.Booking) string {

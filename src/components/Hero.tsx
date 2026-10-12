@@ -1,8 +1,13 @@
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
+import NextAvailability from "./NextAvailability";
 
 const INSTA_URL = "https://instagram.com/pinkstar_society";
 const MAIL_URL = "mailto:contact@pinkstarsociety.fr";
+
+/** Boutons secondaires : plus compacts sur mobile, côte à côte sous le CTA rose. */
+const SECONDARY_BTN =
+  "btn-chrome justify-center max-sm:gap-2 max-sm:px-4 max-sm:py-3 max-sm:text-[0.8rem] max-sm:tracking-[0.04em]";
 
 export default function Hero() {
   const ref = useRef<HTMLElement>(null);
@@ -17,82 +22,97 @@ export default function Hero() {
   return (
     <section
       ref={ref}
-      className="relative min-h-[100svh] w-full overflow-hidden pt-24 sm:pt-32 md:pt-40"
+      className="relative min-h-[100svh] w-full overflow-hidden pt-24 sm:pt-28"
     >
       <BackgroundFX />
 
       <div className="relative z-10 mx-auto grid max-w-[1400px] grid-cols-1 items-center gap-8 px-5 pb-16 sm:px-7 sm:pb-24 md:gap-10 md:px-10 lg:grid-cols-12 lg:gap-12">
+        {/* Mobile : le texte occupe tout le 1er écran (6rem = pt-24), l'espace
+            libre est réparti entre les blocs et l'étoile n'arrive qu'au scroll. */}
         <motion.div
           style={{ y: yCopy, opacity }}
-          className="relative lg:col-span-7"
+          className="relative max-sm:mb-16 max-sm:flex max-sm:min-h-[calc(100svh-6rem)] max-sm:flex-col max-sm:justify-between max-sm:pb-6 lg:col-span-7"
         >
-          <Eyebrow />
+          <div>
+            <Eyebrow />
 
-          <h1 className="font-display uppercase leading-[1] tracking-[-0.05em]">
-            <Reveal delay={0.05}>
-              <span className="block text-[14vw] chrome-pink md:text-[8vw] lg:text-[8.4rem]">
-                PinkStar
-              </span>
-            </Reveal>
-            <Reveal delay={0.18}>
-              <span className="block text-[14vw] text-white md:text-[8vw] lg:text-[8.4rem]">
-                Society.
-              </span>
-            </Reveal>
-          </h1>
+            <h1 className="font-display uppercase leading-[1] tracking-[-0.05em]">
+              <Reveal delay={0.05}>
+                <span className="block text-[14vw] chrome-pink md:text-[8vw] lg:text-[8.4rem]">
+                  PinkStar
+                </span>
+              </Reveal>
+              <Reveal delay={0.18}>
+                <span className="block text-[14vw] text-white md:text-[8vw] lg:text-[8.4rem]">
+                  Society.
+                </span>
+              </Reveal>
+            </h1>
 
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.6 }}
-            className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] uppercase tracking-[0.28em] text-white/70 sm:tracking-[0.32em] md:mt-6"
-          >
-            <span className="h-px w-8 bg-pss-pink" />
-            <span>Nail art sur-mesure</span>
-            <span className="h-px w-8 bg-pss-pink" />
-            <span className="text-pss-pink">Bordeaux</span>
-          </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4, duration: 0.6 }}
+              className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] uppercase tracking-[0.28em] text-white/70 sm:tracking-[0.32em] md:mt-2"
+            >
+              <span className="h-px w-8 bg-pss-pink" />
+              <span>Nail art sur-mesure</span>
+              <span className="h-px w-8 bg-pss-pink" />
+              <span className="text-pss-pink">Bordeaux</span>
+            </motion.div>
+          </div>
 
           <motion.p
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.55, duration: 0.7 }}
-            className="mt-6 max-w-[36rem] font-serif text-[16px] leading-relaxed text-white/75 sm:text-[17px] md:mt-8 md:text-[19px]"
+            className="mt-6 max-w-[36rem] font-serif text-[16px] leading-relaxed text-white/75 sm:text-[17px] md:text-[19px]"
           >
             Pose, dépose, création à la main. Chaque set se construit à
             partir d'une inspiration partagée, et chaque séance se termine par
             un shoot — archivé dans votre espace personnel.
           </motion.p>
 
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7, duration: 0.6 }}
-            className="mt-7 flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center md:mt-10"
-          >
-            <a
-              href={INSTA_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="btn-pink justify-center sm:justify-start"
+          <div>
+            <motion.div
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.62, duration: 0.6 }}
+              className="mt-6"
             >
-              <InstaIcon />
-              Prendre rendez-vous
-            </a>
-            <a
-              href={MAIL_URL}
-              className="btn-chrome justify-center sm:justify-start"
+              <NextAvailability />
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.7, duration: 0.6 }}
+              className="mt-7 grid w-fit grid-cols-2 gap-2.5 max-sm:mx-auto sm:flex sm:flex-wrap sm:items-center sm:gap-3"
             >
-              <MailIcon />
-              Demande par mail
-            </a>
-            <a
-              href="#process"
-              className="btn-chrome justify-center sm:justify-start"
-            >
-              Comment ça marche
-            </a>
-          </motion.div>
+              <a
+                href={INSTA_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="btn-pink col-span-2 justify-center"
+              >
+                <InstaIcon />
+                Prendre rendez-vous
+              </a>
+              <a
+                href={MAIL_URL}
+                className={SECONDARY_BTN}
+              >
+                <MailIcon />
+                Demande par mail
+              </a>
+              <a
+                href="#process"
+                className={SECONDARY_BTN}
+              >
+                Comment ça marche
+              </a>
+            </motion.div>
+          </div>
 
           <motion.div
             initial={{ opacity: 0 }}
@@ -125,7 +145,7 @@ function Eyebrow() {
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
-      className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] uppercase tracking-[0.28em] text-white/55 sm:text-[11px] sm:tracking-[0.32em] md:mb-8"
+      className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] uppercase tracking-[0.28em] text-white/55 sm:text-[11px] sm:tracking-[0.32em]"
     >
       <span className="grid h-1.5 w-1.5 place-items-center rounded-full bg-pss-pink shadow-[0_0_10px_rgba(244,63,155,0.85)]" />
       <span className="text-white/85">Édition 01</span>

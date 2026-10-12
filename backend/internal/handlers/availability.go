@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"time"
 
@@ -225,6 +226,46 @@ func applyBookingsToMonth(m *models.MonthAvailability, bookings []models.Booking
 			break
 		}
 	}
+}
+
+// nextAvailability : premier jour réservable, affiché sur la home.
+type nextAvailability struct {
+	Date  string   `json:"date"`  // YYYY-MM-DD
+	Slots []string `json:"slots"` // créneaux libres : h08 | h10 | h14 | h17
+}
+
+// firstOpenDay renvoie le premier jour de m, à partir de now, qui a encore un
+// créneau libre. Le jour même, un créneau déjà commencé ne compte plus.
+func firstOpenDay(m models.MonthAvailability, now time.Time) (nextAvailability, bool) {
+	m = normalizeMonthAvailability(m)
+	sort.Slice(m.Days, func(i, j int) bool { return m.Days[i].Day < m.Days[j].Day })
+
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	nowMinutes := now.Hour()*60 + now.Minute()
+
+	for _, d := range m.Days {
+		date := time.Date(m.Year, time.Month(m.Month), d.Day, 0, 0, 0, 0, now.Location())
+		if date.Before(today) {
+			continue
+		}
+		isToday := date.Equal(today)
+		var open []string
+		for _, s := range []struct{ key, status string }{
+			{"h08", d.H08}, {"h10", d.H10}, {"h14", d.H14}, {"h17", d.H17},
+		} {
+			if s.status != "open" {
+				continue
+			}
+			if isToday && bookingtime.SlotWindows[s.key][0] <= nowMinutes {
+				continue
+			}
+			open = append(open, s.key)
+		}
+		if len(open) > 0 {
+			return nextAvailability{Date: date.Format("2006-01-02"), Slots: open}, true
+		}
+	}
+	return nextAvailability{}, false
 }
 
 func splitDateParts(date string) []string {

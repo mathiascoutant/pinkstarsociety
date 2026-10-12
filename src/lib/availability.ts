@@ -158,6 +158,20 @@ export async function fetchPublicMonth(
   );
 }
 
+export type NextAvailableDay = {
+  /** YYYY-MM-DD */
+  date: string;
+  slots: SlotKey[];
+};
+
+/** Premier jour avec un créneau libre parmi les mois publiés (null si aucun). */
+export async function fetchNextAvailability(): Promise<NextAvailableDay | null> {
+  const res = await api<{ next: NextAvailableDay | null }>(
+    "/public/availability/next",
+  );
+  return res.next;
+}
+
 export function toggleSlotPure(
   m: MonthAvailability,
   day: number,
